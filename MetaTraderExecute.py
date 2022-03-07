@@ -16,7 +16,7 @@ ID=int(config['META_TRADER5']['id'])
 PASSWORD=config['META_TRADER5']['password']
 SERVER=config['META_TRADER5']['server']
 
-class Execute:
+class MetaTraderExecute:
     
     def __init__(self, symbol, buyOrSell, entry, takeProfit, stopLoss, trailingStop=False) -> None:
         self._symbol = symbol
@@ -49,7 +49,7 @@ class Execute:
             self.initalize()
         # get ask price
         ask_price = mt5.symbol_info(self._symbol)._asdict()['ask']
-        print(" ask price : {}".format(ask_price))
+        print("Ask price : {}".format(ask_price))
         point = mt5.symbol_info(self._symbol,).point
         # do a comparision to set buy stop or buy limit
         if self._buyOrSell == "BUY" :
@@ -78,14 +78,14 @@ class Execute:
             "magic": 234000,
             "type_time": mt5.ORDER_TIME_GTC,
             "type_filling": mt5.ORDER_FILLING_RETURN,}
+
         # send a trading request
         result = mt5.order_send(request)
         print("OrderSend error %d",mt5.last_error());  
-        print(result.retcode) 
         # check the execution result
         if result.retcode != mt5.TRADE_RETCODE_DONE:
-            print("order_send failed, retcode={}".format(result.retcode))
-            print("shutdown() and quit")
+            print("Order_send failed, retcode={}".format(result.retcode))
+            print("Shutdown() and quit")
             self.shutdown()
             
         self.shutdown()
@@ -93,7 +93,6 @@ class Execute:
 
     def shutdown(self):
         mt5.shutdown()
-
 
 if __name__ == "__main__":
     a = Execute("EURUSD.", BUY, 1.10000, 300,300)

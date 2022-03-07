@@ -2,3 +2,4 @@ config.ini
 .venv
 __pycache__/*
 anon.session
+/anon.session-journal
