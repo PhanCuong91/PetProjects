@@ -1,0 +1,4 @@
+config.ini
+.venv
+__pycache__/*
+anon.session
