@@ -14,7 +14,7 @@ def extractInfor(mess):
     # infor [24737  , 'XAUUSD', 'BUY'     , '1889.93', 'high', 30 , 60 , 81 , 30]
     #       [mess id,  pair   ,  BuyOrSell,  entry   ,  risk , TP1, TP2, TP3, SL]
     # TP, SL is pip
-    position_detail = {"mess_id" : mess.id}
+    position_detail = {}
     for info in detail:
         # split message by ':'
         position_detail[(re.split(": ", info))[0]]=(re.split(": ", info))[1]
@@ -27,7 +27,7 @@ def extractInfor(mess):
 
 # Manage all linking meta trader's postions with message id 
 # Change the postions according replied message
-positions_managment = []
+msg_position_detail = {}
 
 # get telegram configuration
 config= configparser.ConfigParser()
@@ -46,33 +46,42 @@ async def main():
     me = await client.get_me()
 
 # @client.loop.run_until_complete(main()) 
-# @client.on(events.NewMessage(from_users='mForex - Private Signal'))
-@client.on(events.NewMessage(from_users='me'))
+@client.on(events.NewMessage(from_users='mForex - Private Signal'))
+# @client.on(events.NewMessage(from_users='me'))
 async def my_event_handler(event):
     # filter messages haveing PAIR in its content
     if re.search("^PAIR*", event.message.text):
-        print(event.message.id)
-        print("Message id is ={}".format(event.message.id))
+        mess=event.message
+        mess_id = event.message.id
+        mess_context = event.message.text
+        print("Message id is ={}".format(mess_id))
         print("Message content: ")
-        print(event.message.text)
+        print(mess_context)
 
-        position_detail = extractInfor(event.message)
+        msg_position_detail[mess_id] = extractInfor(mess)
+        position_detail=msg_position_detail[mess_id]
         print("Position's detail after extracting:\n{}".format(position_detail))
-
+        
         # if PAIR of position_detail has '.' at the end, then dont add '.' to the end
         if position_detail['PAIR'][len(position_detail['PAIR'])-1]=='.':
             open_position = MetaTraderExecute(position_detail['PAIR'], position_detail['TYPE'], float(position_detail['Open Price']), position_detail['TP1']*10,position_detail['SL']*10)
         else:
             open_position = MetaTraderExecute(position_detail['PAIR']+'.', position_detail['TYPE'], float(position_detail['Open Price']), position_detail['TP1']*10,position_detail['SL']*10)
         
-        #Open new position
+        # Open new position
         position_id = open_position.open()
-        position_link_meta_tele = {"meta_position_id": position_id}
-        position_link_meta_tele["mess_id"] = position_detail["mess_id"]
-        positions_managment.append(position_link_meta_tele)
+        if position_id != -1:
+            msg_position_detail[mess_id]["meta_position_id"] = position_id
+            print("All positions were created: ")
+            print(msg_position_detail)
 
     if event.message.is_reply:
         reply_mess = await event.message.get_reply_message()
-        print("Replied message id is:\n={}".format(reply_mess.id))
+        print("Replied message id is: {}".format(reply_mess.id))
+        if reply_mess.id in msg_position_detail:
+            print(msg_position_detail[reply_mess.id]["meta_position_id"])
+        else:
+            pass
+
 
 client.run_until_disconnected()
