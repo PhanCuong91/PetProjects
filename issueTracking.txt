@@ -1,0 +1,9 @@
+Issue 1: 
+In case, entry price is equal ask price, cannot create a position and return 10015 (TRADE_RETCODE_INVALID_PRICE Invalid price in the request)
+Root cause: Buy/Sell (Stop/Limit) is whether larger or smaller, but never equal
+Solution: Cannot set type of order when ask price or bid price is equal entry price. verify the condition for a while, then increase entry price 0.5%
+
+Issue 2:
+Some SELL positions were cannot be created
+Root cause: SELL position type shall be identified by comparision of BID price not ASK price
+Solution: Use Bid price to comparision instead of Ask price

@@ -3,3 +3,4 @@ config.ini
 __pycache__/*
 anon.session
 /anon.session-journal
+/Execute.log

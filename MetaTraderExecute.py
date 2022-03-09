@@ -1,6 +1,8 @@
 import MetaTrader5 as mt5
 import os
 import configparser
+import logging
+import sys
 
 RETURN_CODE = {
 10004 : "TRADE_RETCODE_REQUOTE (Requote)",
@@ -50,15 +52,33 @@ VOLUME = 0.01
 DEVIATION=20
 BUY=1
 SELL=0
+TIMEOUT_COUNTER=10
+PERCENT=0.5 #-> 0.5%
 # read configuration from congfig.ini
 # https://docs.python.org/3/library/configparser.html
 
 config= configparser.ConfigParser()
 config.read('config.ini')
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("Execute.log"),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logging.info('Program is started')
+
 ID=int(config['META_TRADER5']['id'])
 PASSWORD=config['META_TRADER5']['password']
 SERVER=config['META_TRADER5']['server']
+
+def order_type(num):
+    try:
+        return config['ORDER_TYPE'][str(num)]
+    except KeyError:
+        logging.exception("The key is not correct")
 
 class MetaTraderExecute:
     
@@ -79,33 +99,30 @@ class MetaTraderExecute:
 
     def initalize(self):
         if not mt5.initialize(login=ID,password=self._password,server=self._server):
-            print("initialize() failed, error code =",mt5.last_error())
+            logging.error("initialize() failed, error code =",mt5.last_error())
             quit()
-        print("Initialize successful")
+        logging.info("Initialize successful")
         self._init = True
         pass
 
     def open(self):
-        #initialize 
+        #initialize if initialization have not done yet
         if not self._init: 
             self.initalize()
-        # get ask price
-        # Issue: in case, entry price is equal ask price, cannot create a position and return 10015 (TRADE_RETCODE_INVALID_PRICE Invalid price in the request)
-        # Buy/Sell (Stop/Limit) is whether larger or smaller, but never equal
-        # Solution: 
-        timeout=1
-        ask_price = mt5.symbol_info(self._symbol)._asdict()['ask']
-        print("Ask price 1: {}".format(ask_price))
-        while ask_price == self._entry:
-            ask_price = mt5.symbol_info(self._symbol)._asdict()['ask']
-            print("Ask price {}: {}".format(timeout,ask_price))
-            if timeout == 100:
-                self._entry = self._entry*1.005
-            timeout=timeout+1
-        print("Ask price : {}".format(ask_price))
+
         point = mt5.symbol_info(self._symbol,).point
+
+        timeout=1
         # do a comparision to set buy stop or buy limit
         if self._buyOrSell == "BUY" :
+            ask_price = mt5.symbol_info(self._symbol)._asdict()['ask']
+            logging.info("Ask price 0: {}".format(ask_price))
+            while ask_price == self._entry:
+                ask_price = mt5.symbol_info(self._symbol)._asdict()['ask']
+                logging.info("Ask price {}: {}".format(timeout,ask_price))
+                if timeout == TIMEOUT_COUNTER:
+                    self._entry = self._entry*(1+(float(PERCENT/100)))
+                timeout=timeout+1
             if ask_price > self._entry: self._type = mt5.ORDER_TYPE_BUY_LIMIT
             else: self._type = mt5.ORDER_TYPE_BUY_STOP
             # calculate SL and TP
@@ -113,12 +130,20 @@ class MetaTraderExecute:
             tp=self._entry+self._takeProfit*point
         # do a comparision to set sell stop or sell limit
         else:
-            if ask_price > self._entry: self._type = mt5.ORDER_TYPE_SELL_STOP
+            bid_price = mt5.symbol_info(self._symbol)._asdict()['bid']
+            logging.info("Bid price 0: {}".format(bid_price))
+            while bid_price == self._entry:
+                bid_price = mt5.symbol_info(self._symbol)._asdict()['bid']
+                logging.info("Bid price {}: {}".format(timeout,bid_price))
+                if timeout == TIMEOUT_COUNTER:
+                    self._entry = self._entry*(1+(float(PERCENT/100)))
+                timeout=timeout+1
+            if bid_price > self._entry: self._type = mt5.ORDER_TYPE_SELL_STOP
             else: self._type = mt5.ORDER_TYPE_SELL_LIMIT
             # calculate SL and TP
             sl=self._entry+self._stopLoss*point
-            tp=self._entry-self._takeProfit*point,
-        
+            tp=self._entry-self._takeProfit*point
+
         request = {
             "action": mt5.TRADE_ACTION_PENDING,
             "symbol": self._symbol,
@@ -132,25 +157,27 @@ class MetaTraderExecute:
             "type_time": mt5.ORDER_TIME_GTC,
             "type_filling": mt5.ORDER_FILLING_RETURN,}
 
+        logging.info("PAIR: {}, ODER_TYPE: {}, PRICE: {}, TP: {}, SL: {}".format(self._symbol,order_type(self._type),self._entry,tp,sl))
+
         # send a trading request
         result = mt5.order_send(request)
-        print("OrderSend error %d",mt5.last_error());  
+        logging.info("OrderSend error %d",mt5.last_error());  
         # check the execution result
         if result.retcode != mt5.TRADE_RETCODE_DONE:
-            print("Order_send failed, retcode={}, {}".format(result.retcode, RETURN_CODE[result.retcode]))
-            print("Shutdown() and quit")
+            logging.info("Order_send failed, retcode= {}".format(RETURN_CODE[result.retcode]))
+            logging.info("Shutdown() and quit")
             self.shutdown()
             return -1
         self.shutdown()
-        print(self._symbol,self._buyOrSell,  self._entry)
-        print("This position was created successfully with order is ", result.order) 
+        logging.info(self._symbol,self._buyOrSell,  self._entry)
+        logging.info("This position was created successfully with order is {}".format(result.order)) 
         return result.order
 
     def shutdown(self):
         mt5.shutdown()
 
 if __name__ == "__main__":
-    a = MetaTraderExecute("EURUSD.", 'BUY', 1.0000, 30,30)
+    a = MetaTraderExecute("EURUSD.", 'SELL', 1.0000, 30,30)
     a.initalize()
     a.open()
     pass
