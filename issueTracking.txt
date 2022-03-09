@@ -4,6 +4,6 @@ Root cause: Buy/Sell (Stop/Limit) is whether larger or smaller, but never equal
 Solution: Cannot set type of order when ask price or bid price is equal entry price. verify the condition for a while, then increase entry price 0.5%
 
 Issue 2:
-Some SELL positions were cannot be created
+Some SELL positions were cannot be created (SELL postion return NULL)
 Root cause: SELL position type shall be identified by comparision of BID price not ASK price
 Solution: Use Bid price to comparision instead of Ask price

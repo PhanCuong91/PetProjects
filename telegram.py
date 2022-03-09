@@ -5,6 +5,16 @@ from MetaTraderExecute import MetaTraderExecute
 import datetime
 import re
 import configparser
+import logging
+import sys
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("Tele.log"),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 x = datetime.datetime(2022, 2, 21)
 
 def extractInfor(mess):
@@ -46,21 +56,21 @@ async def main():
     me = await client.get_me()
 
 # @client.loop.run_until_complete(main()) 
-@client.on(events.NewMessage(from_users='mForex - Private Signal'))
-# @client.on(events.NewMessage(from_users='me'))
+# @client.on(events.NewMessage(from_users='mForex - Private Signal'))
+@client.on(events.NewMessage(from_users='me'))
 async def my_event_handler(event):
     # filter messages haveing PAIR in its content
     if re.search("^PAIR*", event.message.text):
         mess=event.message
         mess_id = event.message.id
         mess_context = event.message.text
-        print("Message id is ={}".format(mess_id))
-        print("Message content: ")
-        print(mess_context)
+        logging.info("Message id is ={}".format(mess_id))
+        logging.info("Message content: ")
+        logging.info(mess_context)
 
         msg_position_detail[mess_id] = extractInfor(mess)
         position_detail=msg_position_detail[mess_id]
-        print("Position's detail after extracting:\n{}".format(position_detail))
+        logging.info("Position's detail after extracting:\n{}".format(position_detail))
         
         # if PAIR of position_detail has '.' at the end, then dont add '.' to the end
         if position_detail['PAIR'][len(position_detail['PAIR'])-1]=='.':
@@ -72,16 +82,18 @@ async def my_event_handler(event):
         position_id = open_position.open()
         if position_id != -1:
             msg_position_detail[mess_id]["meta_position_id"] = position_id
-            print("All positions were created: ")
-            print(msg_position_detail)
+            logging.info("All positions were created: ")
+            logging.info(msg_position_detail)
 
     if event.message.is_reply:
         reply_mess = await event.message.get_reply_message()
-        print("Replied message id is: {}".format(reply_mess.id))
+        logging.info("Replied message id is: {}".format(reply_mess.id))
+        # search key of message id in msg_position_detail
         if reply_mess.id in msg_position_detail:
-            print(msg_position_detail[reply_mess.id]["meta_position_id"])
+            # search key of order id msg_position_detail[reply_mess.id]
+            if "meta_position_id" in msg_position_detail[reply_mess.id]:
+                logging.info(msg_position_detail[reply_mess.id]["meta_position_id"])
         else:
             pass
-
 
 client.run_until_disconnected()

@@ -161,7 +161,7 @@ class MetaTraderExecute:
 
         # send a trading request
         result = mt5.order_send(request)
-        logging.info("OrderSend error %d",mt5.last_error());  
+        logging.info("OrderSend error {}".format(mt5.last_error()))  
         # check the execution result
         if result.retcode != mt5.TRADE_RETCODE_DONE:
             logging.info("Order_send failed, retcode= {}".format(RETURN_CODE[result.retcode]))
@@ -169,7 +169,6 @@ class MetaTraderExecute:
             self.shutdown()
             return -1
         self.shutdown()
-        logging.info(self._symbol,self._buyOrSell,  self._entry)
         logging.info("This position was created successfully with order is {}".format(result.order)) 
         return result.order
 
