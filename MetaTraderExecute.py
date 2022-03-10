@@ -82,13 +82,14 @@ def order_type(num):
 
 class MetaTraderExecute:
     
-    def __init__(self, symbol, buyOrSell, entry, takeProfit, stopLoss, trailingStop=False) -> None:
+    def __init__(self, symbol, buyOrSell, entry, takeProfit, stopLoss, comment, trailingStop=False) -> None:
         self._symbol = symbol
         self._buyOrSell = buyOrSell
         self._entry = entry
         self._takeProfit = takeProfit
         self._stopLoss = stopLoss
         self._trailingStop = trailingStop
+        self._comment = comment
         self._volume = VOLUME
         self._deviation = DEVIATION
         self._id = ID
@@ -152,6 +153,7 @@ class MetaTraderExecute:
             "price": self._entry,
             "sl": sl,
             "tp":tp,
+            "comment": self._comment,
             "deviation": self._deviation,
             "magic": 234000,
             "type_time": mt5.ORDER_TIME_GTC,

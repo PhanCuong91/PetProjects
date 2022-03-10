@@ -24,7 +24,7 @@ def extractInfor(mess):
     # infor [24737  , 'XAUUSD', 'BUY'     , '1889.93', 'high', 30 , 60 , 81 , 30]
     #       [mess id,  pair   ,  BuyOrSell,  entry   ,  risk , TP1, TP2, TP3, SL]
     # TP, SL is pip
-    position_detail = {}
+    position_detail = {'comment': str(mess.id)}
     for info in detail:
         # split message by ':'
         position_detail[(re.split(": ", info))[0]]=(re.split(": ", info))[1]
@@ -74,9 +74,9 @@ async def my_event_handler(event):
         
         # if PAIR of position_detail has '.' at the end, then dont add '.' to the end
         if position_detail['PAIR'][len(position_detail['PAIR'])-1]=='.':
-            open_position = MetaTraderExecute(position_detail['PAIR'], position_detail['TYPE'], float(position_detail['Open Price']), position_detail['TP1']*10,position_detail['SL']*10)
+            open_position = MetaTraderExecute(position_detail['PAIR'], position_detail['TYPE'], float(position_detail['Open Price']), position_detail['TP1']*10,position_detail['SL']*10, position_detail['comment'])
         else:
-            open_position = MetaTraderExecute(position_detail['PAIR']+'.', position_detail['TYPE'], float(position_detail['Open Price']), position_detail['TP1']*10,position_detail['SL']*10)
+            open_position = MetaTraderExecute(position_detail['PAIR']+'.', position_detail['TYPE'], float(position_detail['Open Price']), position_detail['TP1']*10,position_detail['SL']*10, position_detail['comment'])
         
         # Open new position
         position_id = open_position.open()
