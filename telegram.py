@@ -1,7 +1,7 @@
 from email import message
 from telethon import TelegramClient,events
 from telethon.tl.types import PeerChat, PeerChannel
-from MetaTraderExecute import MetaTraderExecute
+from MetaTraderExecute import PlaceOrder
 import datetime
 import re
 import configparser
@@ -73,15 +73,14 @@ async def my_event_handler(event):
         logging.info("Position's detail after extracting:\n{}".format(position_detail))
         
         # if PAIR of position_detail has '.' at the end, then dont add '.' to the end
-        if position_detail['PAIR'][len(position_detail['PAIR'])-1]=='.':
-            open_position = MetaTraderExecute(position_detail['PAIR'], position_detail['TYPE'], float(position_detail['Open Price']), position_detail['TP1']*10,position_detail['SL']*10, position_detail['comment'])
-        else:
-            open_position = MetaTraderExecute(position_detail['PAIR']+'.', position_detail['TYPE'], float(position_detail['Open Price']), position_detail['TP1']*10,position_detail['SL']*10, position_detail['comment'])
-        
         # Open new position
-        position_id = open_position.open()
-        if position_id != -1:
-            msg_position_detail[mess_id]["meta_position_id"] = position_id
+        if position_detail['PAIR'][len(position_detail['PAIR'])-1]=='.':
+            placed_position_id = PlaceOrder(position_detail['PAIR'], position_detail['TYPE'], float(position_detail['Open Price']), position_detail['TP1']*10,position_detail['SL']*10, position_detail['comment']).place_order()
+        else:
+            placed_position_id = PlaceOrder(position_detail['PAIR']+'.', position_detail['TYPE'], float(position_detail['Open Price']), position_detail['TP1']*10,position_detail['SL']*10, position_detail['comment']).place_order()
+
+        if placed_position_id != -1:
+            msg_position_detail[mess_id]["meta_position_id"] = placed_position_id
             logging.info("All positions were created: ")
             logging.info(msg_position_detail)
 
