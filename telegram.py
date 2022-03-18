@@ -37,7 +37,7 @@ def extractInfor(mess):
 
 # Manage all linking meta trader's postions with message id 
 # Change the postions according replied message
-msg_position_detail = {}
+msg_ticket_detail = {}
 
 # get telegram configuration
 config= configparser.ConfigParser()
@@ -68,30 +68,77 @@ async def my_event_handler(event):
         logging.info("Message content: ")
         logging.info(mess_context)
 
-        msg_position_detail[mess_id] = extractInfor(mess)
-        position_detail=msg_position_detail[mess_id]
-        logging.info("Position's detail after extracting:\n{}".format(position_detail))
-        
+        msg_ticket_detail[mess_id] = extractInfor(mess)
+        order_detail=msg_ticket_detail[mess_id]
+        # Change to correct key
+        # delete unused key
+        order_detail['symbol'] = order_detail['PAIR']
+        del order_detail['PAIR']
+        order_detail['order_type'] = order_detail['TYPE']
+        del order_detail['TYPE']
+        order_detail['price'] = order_detail['Open Price']
+        del order_detail['Open Price']
+
+        # add trailing stop
+        order_detail['trailing_stop'] = None
+        logging.info("Position's detail after extracting:\n{}".format(order_detail))
         # if PAIR of position_detail has '.' at the end, then dont add '.' to the end
         # Open new position
-        if position_detail['PAIR'][len(position_detail['PAIR'])-1]=='.':
-            placed_position_id = PlaceOrder(position_detail['PAIR'], position_detail['TYPE'], float(position_detail['Open Price']), position_detail['TP1']*10,position_detail['SL']*10, position_detail['comment']).place_order()
-        else:
-            placed_position_id = PlaceOrder(position_detail['PAIR']+'.', position_detail['TYPE'], float(position_detail['Open Price']), position_detail['TP1']*10,position_detail['SL']*10, position_detail['comment']).place_order()
-
-        if placed_position_id != -1:
-            msg_position_detail[mess_id]["meta_position_id"] = placed_position_id
+        if order_detail['symbol'][len(order_detail['symbol'])-1]!='.':
+            order_detail['symbol'] = order_detail['symbol']+'.'
+        
+        # Create 3 types of ticket:
+        # 1st type: close a position if it hits TP1
+        # 2nd type: if a position hits TP1, then move SL to entry
+        #           if a position hits TP2, then close the position
+        # 3rd type: if a position hits TP1, then move SL to entry
+        #           if a position hits TP2, then move SL to TP1
+        #           if a position hits TP3, then close the position
+        
+        ticket_id = PlaceOrder(order_detail).place_order()
+        order_detai_trailing_stop_tp3 = order_detail
+        order_detai_trailing_stop_tp3['trailing_stop']='TP3'
+        order_detai_trailing_stop_tp3['comment']='TP3'
+        order_detai_trailing_stop_tp2 = order_detail
+        order_detai_trailing_stop_tp2['trailing_stop']='TP2'
+        order_detai_trailing_stop_tp2['comment']='TP2'
+        ticket_id_trailing_stop_tp3 = PlaceOrder(order_detai_trailing_stop_tp3).place_order()
+        ticket_id_trailing_stop_tp2 = PlaceOrder(order_detai_trailing_stop_tp2).place_order()
+        if ticket_id != -1:
+            # order is a ticket being placed
+            # position is a ticket being execute
+            if len(msg_ticket_detail[mess_id]["meta_ticket_id"])==0:
+                msg_ticket_detail[mess_id]["meta_ticket_id"] = {ticket_id}
+            else:
+                msg_ticket_detail[mess_id]["meta_ticket_id"].append(ticket_id)
+        if ticket_id_trailing_stop_tp3 != -1:
+            # order is a ticket being placed
+            # position is a ticket being execute
+            if len(msg_ticket_detail[mess_id]["meta_ticket_id"])==0:
+                msg_ticket_detail[mess_id]["meta_ticket_id"] = {ticket_id_trailing_stop_tp3}
+            else:
+                msg_ticket_detail[mess_id]["meta_ticket_id"].append(ticket_id_trailing_stop_tp3)
+        if ticket_id_trailing_stop_tp2 != -1:
+            # order is a ticket being placed
+            # position is a ticket being execute
+            if len(msg_ticket_detail[mess_id]["meta_ticket_id"])==0:
+                msg_ticket_detail[mess_id]["meta_ticket_id"] = {ticket_id_trailing_stop_tp2}
+            else:
+                msg_ticket_detail[mess_id]["meta_ticket_id"].append(ticket_id_trailing_stop_tp2)
+        msg_ticket_detail[mess_id]["OrderOrPosition"] = 'Order'
+        
+        if ticket_id_trailing_stop_tp3 != -1 and ticket_id != -1 and ticket_id_trailing_stop_tp2 != -1:
             logging.info("All positions were created: ")
-            logging.info(msg_position_detail)
+            logging.info(msg_ticket_detail)
 
     if event.message.is_reply:
         reply_mess = await event.message.get_reply_message()
         logging.info("Replied message id is: {}".format(reply_mess.id))
         # search key of message id in msg_position_detail
-        if reply_mess.id in msg_position_detail:
+        if reply_mess.id in msg_ticket_detail:
             # search key of order id msg_position_detail[reply_mess.id]
-            if "meta_position_id" in msg_position_detail[reply_mess.id]:
-                logging.info(msg_position_detail[reply_mess.id]["meta_position_id"])
+            if "meta_ticket_id" in msg_ticket_detail[reply_mess.id]:
+                logging.info(msg_ticket_detail[reply_mess.id]["meta_ticket_id"])
         else:
             pass
 
