@@ -7,12 +7,12 @@ import sys
 
 
 VOLUME = 0.01
-DEVIATION=20
+DEVIATION=50
 BUY=1
 SELL=0
 TIMEOUT_COUNTER=10
 PERCENT=0.5 #-> 0.5%
-PIP=30
+PIP=50
 # read configuration from congfig.ini
 # https://docs.python.org/3/library/configparser.html
 
@@ -45,27 +45,17 @@ def return_code(num):
     except KeyError:
         logging.exception("The key is not defined")
 
-class PlaceOrder:
+class MetaTrader:
     
-    def __init__(self, order_detail) -> None:
-        self._symbol = order_detail['symbol']
-        self._buyOrSell = order_detail['order_type']
-        self._entry = float(order_detail['price'])
-        self._trailingStop = order_detail['trailing_stop']
-        if self._trailingStop == 'TP3':
-            self._takeProfit = order_detail['TP3']*10
-        elif self._trailingStop == 'TP2':
-            self._takeProfit = order_detail['TP2']*10
-        elif self._trailingStop == 'TP1':
-            self._takeProfit = order_detail['TP1']*10
-        self._stopLoss = order_detail['SL']*10
-        self._comment = order_detail['comment']
+    def __init__(self, ticket) -> None:
+        print(ticket)
+        self._ticket = ticket
         self._volume = VOLUME
         self._deviation = DEVIATION
         self._id = ID
         self._password = PASSWORD
         self._server = SERVER
-        self._init = False
+        self._action = mt5.TRADE_ACTION_PENDING
         pass
 
     def initalize(self):
@@ -73,153 +63,180 @@ class PlaceOrder:
             logging.error("initialize() failed, error code =",mt5.last_error())
             quit()
         logging.info("Initialize successful")
-        self._init = True
         pass
+    
+    def shutdown(self):
+        mt5.shutdown()
 
-    def place_order(self):
-        #initialize if initialization have not done yet
-        if not self._init: 
-            self.initalize()
+    def place_order(self, symbol=None, volume=None, type=None, price=None, sl=None, tp=None, comment=None, trailing_stop=None):
+        self.initalize()
+        self._point= mt5.symbol_info(self._ticket['symbol']).point
+        if symbol is not None:
+            self._ticket['symbol'] = symbol
+        if volume is not None:
+            self._ticket['volume'] = volume
+        if type is not None:
+            self._ticket['type'] = type
+        if price is not None:
+            self._ticket['price'] = price
+        if sl is not None:
+            self._ticket['sl'] = sl*10*self._point
+        if tp is not None:
+            self._ticket['tp'] = tp*10*self._point
+        if comment is not None:
+            self._ticket['comment'] = comment
+        if trailing_stop is not None:
+            self._ticket['trailing_stop'] = trailing_stop
+        if not self.prepare_ticket():
+            logging.error("Error: Ticket preparation has error")
+            return -1
+        request = self.order_request()
+        result = self.execute(request)
+        if result is None:
+            return -1
+        logging.info("This position was created successfully with order is {}".format(result.order))
+        self._ticket['id'] = result.order
+        return self._ticket['id']
 
-        point = mt5.symbol_info(self._symbol).point
-
-        timeout=1
-        # do a comparision to set buy stop or buy limit
-        if self._buyOrSell == "BUY" :
-            ask_price = mt5.symbol_info(self._symbol)._asdict()['ask']
-            logging.info("Ask price 0: {}".format(ask_price))
-            while ask_price == self._entry:
-                ask_price = mt5.symbol_info(self._symbol)._asdict()['ask']
-                logging.info("Ask price {}: {}".format(timeout,ask_price))
-                if timeout == TIMEOUT_COUNTER:
-                    self._entry = self._entry+(PIP*point)
-                timeout=timeout+1
-            if ask_price > self._entry: self._type = mt5.ORDER_TYPE_BUY_LIMIT
-            else: self._type = mt5.ORDER_TYPE_BUY_STOP
-            # calculate SL and TP
-            sl=self._entry-self._stopLoss*point
-            tp=self._entry+self._takeProfit*point
-        # do a comparision to set sell stop or sell limit
+    def change_sl_tp_position(self, tp=None, sl=None, position=None, symbol=None):
+        self._point= mt5.symbol_info(self._ticket['symbol']).point
+        if position is not None:
+            self._ticket['id'] = position
+        if symbol is not None:
+             self._ticket['symbol'] = symbol
+        if tp is not None and sl is not None:
+            self._ticket['tp']=tp*10*self._point
+            self._ticket['sl']=sl*10*self._point
+        elif tp is  None and sl is  None:
+            self.prepare_tp_sl()
         else:
-            bid_price = mt5.symbol_info(self._symbol)._asdict()['bid']
-            logging.info("Bid price 0: {}".format(bid_price))
-            while bid_price == self._entry:
-                bid_price = mt5.symbol_info(self._symbol)._asdict()['bid']
-                logging.info("Bid price {}: {}".format(timeout,bid_price))
-                if timeout == TIMEOUT_COUNTER:
-                    self._entry = self._entry-(PIP*point)
-                timeout=timeout+1
-            if bid_price > self._entry: self._type = mt5.ORDER_TYPE_SELL_STOP
-            else: self._type = mt5.ORDER_TYPE_SELL_LIMIT
+            logging.error("Error: SL and TP shall be set")
+        request = self.order_request()
+        result = self.execute(request)
+        if result is None:
+            return -1
+        logging.info("Position {}: SL and TP were changed to {} and {}".format(result.order, self._ticket['sl'], self._ticket['tp']))
+    
+    def prepare_ticket(self):
+        
+        if self._ticket['order_type'] == "BUY" :
+            ask_price = mt5.symbol_info(self._ticket['symbol'])._asdict()['ask']
+            logging.info("Ask price: {}".format(ask_price))
+            
+            if abs(ask_price - self._ticket['price']) <= PIP*self._point:
+                self._type = mt5.ORDER_TYPE_BUY
+                self._action = mt5.TRADE_ACTION_DEAL
+             # do a comparision to set buy stop or buy limit 
+            else:
+                if ask_price > self._ticket['price']: self._type = mt5.ORDER_TYPE_BUY_LIMIT
+                else: self._type = mt5.ORDER_TYPE_BUY_STOP
             # calculate SL and TP
-            sl=self._entry+self._stopLoss*point
-            tp=self._entry-self._takeProfit*point
+            self._ticket['sl']=self._ticket['price']-self._ticket['SL']*self._point
+            if self._ticket['trailing_stop'] is not None:
+                if self._ticket['trailing_stop']  in self._ticket: 
+                    self._ticket['tp']=self._ticket['price']+self._ticket[self._ticket['trailing_stop']]*self._point
+                else:
+                    logging.error("Error: self._ticket does not have a key {}".format(self._ticket['trailing_stop']))
+                    return False
+        
+        else:
+            bid_price = mt5.symbol_info(self._ticket['symbol'])._asdict()['bid']
+            logging.info("Bid price: {}".format(bid_price))
 
+            if abs(bid_price - self._ticket['price']) <= PIP*self._point:
+                self._type = mt5.ORDER_TYPE_SELL
+                self._action = mt5.TRADE_ACTION_DEAL
+            # do a comparision to set sell stop or sell limit
+            else:
+                if bid_price > self._ticket['price']: self._type = mt5.ORDER_TYPE_SELL_STOP
+                else: self._type = mt5.ORDER_TYPE_SELL_LIMIT
+            # calculate SL and TP
+            self._ticket['sl']=self._ticket['price']+self._ticket['SL']*self._point
+            if self._ticket['trailing_stop'] is not None:
+                if self._ticket['trailing_stop']  in self._ticket: 
+                    self._ticket['tp']=self._ticket['price']-self._ticket[self._ticket['trailing_stop']]*self._point
+                else:
+                    logging.error("Error: self._ticket does not have a key {}".format(self._ticket['trailing_stop']))
+                    return False
+        return True    
+
+    def order_request(self):
+        # create a request for crating new order or position
         request = {
-            "action": mt5.TRADE_ACTION_PENDING,
-            "symbol": self._symbol,
+            "action": self._action,
+            "symbol": self._ticket['symbol'],
             "volume": self._volume,
             "type": self._type,
-            "price": self._entry,
-            "sl": sl,
-            "tp":tp,
-            "comment": self._comment,
+            "price": self._ticket['price'],
+            "sl": self._ticket['sl'],
+            "tp":self._ticket['tp'],
+            "comment": self._ticket['comment'],
             "deviation": self._deviation,
             "magic": 234000,
             "type_time": mt5.ORDER_TIME_GTC,
             "type_filling": mt5.ORDER_FILLING_RETURN,}
+        logging.info("order request with symbol: {}, order_type: {}, price: {}, TP: {}, SL: {}, Trailing Stop: {}".format(self._ticket['symbol'],order_type(self._type),self._ticket['price'],self._ticket['tp'],self._ticket['sl'],self._ticket['trailing_stop']))
+        return request
 
-        logging.info("symbol: {}, order_type: {}, price: {}, TP: {}, SL: {}, Trailing Stop: {}".format(self._symbol,order_type(self._type),self._entry,tp,sl,self._trailingStop))
+    def tp_sl_request(self):
+        # create a request for changing sl and tp
+        request = {
+            "action": mt5.TRADE_ACTION_SLTP,
+            "symbol": self._ticket['symbol'],
+            "position": self._ticket['id'],
+            "sl": self._ticket['sl'],
+            "tp": self._ticket['tp'],
+            "magic": 234000,}
+        logging.info("symbol: {}, order_type: {}, price: {}, TP: {}, SL: {}".format(self._ticket['symbol'],order_type(self._type),self._ticket['price'],self._ticket['tp'],self._ticket['sl']))
+        return request
 
-        # send a trading request
+    def execute(self, request):
+        # send a request
         result = mt5.order_send(request)
-        logging.info("OrderSend error {}".format(mt5.last_error()))  
+        logging.info("OrderSend {}".format(mt5.last_error()))  
         # check the execution result
         if result.retcode != mt5.TRADE_RETCODE_DONE:
             logging.info("Order_send failed, retcode= {}".format(return_code(result.retcode)))
             logging.info("Shutdown() and quit")
-            self.shutdown()
-            return -1
+            return None
         self.shutdown()
-        logging.info("This position was created successfully with order is {}".format(result.order)) 
-        return result.order
+        return result
 
-    def shutdown(self):
-        mt5.shutdown()
-
-class ModifyPosition:
-    def __init__(self, ticket_detail) -> None:
-        self._ticket_detail=ticket_detail
-        self._symbol = ticket_detail['symbol']
-        self._position= ticket_detail['meta_ticket_id']
-        self._buyOrSell = ticket_detail['order_type']
-        self._entry = ticket_detail['price']
-
-    def initalize(self):
-        if not mt5.initialize(login=ID,password=self._password,server=self._server):
-            logging.error("initialize() failed, error code =",mt5.last_error())
-            quit()
-        logging.info("Initialize successful")
-        self._init = True
-        pass
-
-    def shutdown(self):
-        mt5.shutdown()
-
-    def changeStopLoss(self, type_stop_loss='TP3'):
-        #initialize if initialization have not done yet
-        if not self._init: 
-            self.initalize()
-        point = mt5.symbol_info(self._symbol,).point
-
-        ask_price = mt5.symbol_info(self._symbol)._asdict()['ask']
-        bid_price = mt5.symbol_info(self._symbol)._asdict()['bid']
-        if self._buyOrSell == "BUY" :
-            tp1=self._entry+self._ticket_detail['TP1']*point
-            tp2=self._entry+self._ticket_detail['TP2']*point
-            tp3=self._entry+self._ticket_detail['TP3']*point
+    def prepare_tp_sl(self):
+        ask_price = mt5.symbol_info(self._ticket['symbol'])._asdict()['ask']
+        logging.info("Ask price 0: {}".format(ask_price))
+        bid_price = mt5.symbol_info(self._ticket['symbol'])._asdict()['bid']
+        logging.info("Ask price 0: {}".format(bid_price))
+        if self._ticket['order_type'] == "BUY" :
+            tp1=self._ticket['price']+self._ticket_detail['TP1']*self._point
+            tp2=self._ticket['price']+self._ticket_detail['TP2']*self._point
+            tp3=self._ticket['price']+self._ticket_detail['TP3']*self._point
             if ask_price>tp2:
                 sl=tp1    
             elif ask_price>tp1:
-                sl=self._entry
+                sl=self._ticket['price']
         else:
-            tp1=self._entry-self._ticket_detail['TP1']*point
-            tp2=self._entry-self._ticket_detail['TP2']*point
-            tp3=self._entry-self._ticket_detail['TP3']*point
+            tp1=self._ticket['price']-self._ticket_detail['TP1']*self._point
+            tp2=self._ticket['price']-self._ticket_detail['TP2']*self._point
+            tp3=self._ticket['price']-self._ticket_detail['TP3']*self._point
             if bid_price<tp2:
                 sl=tp1
             elif bid_price<tp1:
-                sl=self._entry
+                sl=self._ticket['price']
         tp = tp1
-        if type_stop_loss == 'TP3':
+        if self._ticket['trailing_stop'] == 'TP3':
             tp = tp3
-        elif type_stop_loss == 'TP2':
+        elif self._ticket['trailing_stop'] == 'TP2':
             tp = tp2
-        elif type_stop_loss == 'TP1':
+        elif self._ticket['trailing_stop'] == 'TP1':
             tp = tp1
-        request = {
-            "action": mt5.TRADE_ACTION_SLTP,
-            "symbol": self._symbol,
-            "position": self._position,
-            "sl": sl,
-            "tp": tp,
-            "magic": 234000,}
-
-        logging.info("symbol: {}, order_type: {}, price: {}, new SL: {}".format(self._symbol,order_type(self._type),self._entry,sl))
-        
-        # send a trading request
-        result = mt5.order_send(request)
-        logging.info("OrderSend error {}".format(mt5.last_error()))  
-        # check the execution result
-        if result.retcode != mt5.TRADE_RETCODE_DONE:
-            logging.info("Order_send failed, retcode= {}".format(return_code(result.retcode)))
-            logging.info("Shutdown() and quit")
-        self.shutdown()
+        self._ticket['tp']=tp
+        self._ticket['sl']=sl
+ 
 
 if __name__ == "__main__":
-    # a = PlaceOrder("EURUSD.", 'SELL', 1.0000, 30,30)
-    order_detail = {'comment': '26004', 'symbol': 'GBPUSD.', 'order_type': 'SELL', 'price': '1.31131', 'Risk': 'high', 'TP1': 30, 'TP2': 56, 'TP3': 115, 'SL': 32, 'trailing_stop': 'TP3'}
-    a = PlaceOrder(order_detail)
+    order_detail = {'comment': '26004', 'symbol': 'GBPUSD.', 'order_type': 'SELL', 'price': 1.31131, 'Risk': 'high', 'TP1': 30, 'TP2': 56, 'TP3': 115, 'SL': 32, 'trailing_stop': 'TP3'}
+    a = MetaTrader(order_detail)
     a.place_order()
     # a.initalize()
     # a.place_order()

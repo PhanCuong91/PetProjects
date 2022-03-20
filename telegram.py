@@ -1,8 +1,8 @@
 from email import message
 from telethon import TelegramClient,events
 from telethon.tl.types import PeerChat, PeerChannel
-from MetaTraderExecute import PlaceOrder
-import datetime
+from MetaTraderExecute import MetaTrader
+import datetime, copy
 import re
 import configparser
 import logging
@@ -69,23 +69,26 @@ async def my_event_handler(event):
         logging.info(mess_context)
 
         msg_ticket_detail[mess_id] = extractInfor(mess)
-        order_detail=msg_ticket_detail[mess_id]
-        # Change to correct key
-        # delete unused key
-        order_detail['symbol'] = order_detail['PAIR']
-        del order_detail['PAIR']
-        order_detail['order_type'] = order_detail['TYPE']
-        del order_detail['TYPE']
-        order_detail['price'] = order_detail['Open Price']
-        del order_detail['Open Price']
-
-        # add trailing stop
-        order_detail['trailing_stop'] = None
-        logging.info("Position's detail after extracting:\n{}".format(order_detail))
+        ticket=msg_ticket_detail[mess_id]
+        # Rapair ticket with correct information
+        # Change to correct key, delete unused key
+        ticket['symbol'] = ticket['PAIR']
+        del ticket['PAIR']
+        ticket['order_type'] = ticket['TYPE']
+        del ticket['TYPE']
+        ticket['price'] = ticket['Open Price']
+        del ticket['Open Price']
         # if PAIR of position_detail has '.' at the end, then dont add '.' to the end
         # Open new position
-        if order_detail['symbol'][len(order_detail['symbol'])-1]!='.':
-            order_detail['symbol'] = order_detail['symbol']+'.'
+        if ticket['symbol'][len(ticket['symbol'])-1]!='.':
+            ticket['symbol'] = ticket['symbol']+'.'
+        ticket['TP1'] = ticket['TP1'] * 10
+        ticket['TP2'] = ticket['TP2'] * 10
+        ticket['TP3'] = ticket['TP3'] * 10
+        ticket['SL'] = ticket['SL'] * 10
+        ticket['price'] = float(ticket['price'])
+        logging.info("Position's detail after extracting:\n{}".format(ticket))
+        # add trailing stop
         
         # Create 3 types of ticket:
         # 1st type: close a position if it hits TP1
@@ -94,37 +97,41 @@ async def my_event_handler(event):
         # 3rd type: if a position hits TP1, then move SL to entry
         #           if a position hits TP2, then move SL to TP1
         #           if a position hits TP3, then close the position
+
+        ticket_trailing_stop_tp3 = copy.copy(ticket)
+        ticket_trailing_stop_tp2 = copy.copy(ticket)
+
+        ticket['trailing_stop'] = 'TP1'
+        ticket['comment']='TP1'
+        ticket_trailing_stop_tp3['trailing_stop']='TP3'
+        ticket_trailing_stop_tp3['comment']='TP3'   
+        ticket_trailing_stop_tp2['trailing_stop']='TP2'
+        ticket_trailing_stop_tp2['comment']='TP2'
         
-        ticket_id = PlaceOrder(order_detail).place_order()
-        order_detai_trailing_stop_tp3 = order_detail
-        order_detai_trailing_stop_tp3['trailing_stop']='TP3'
-        order_detai_trailing_stop_tp3['comment']='TP3'
-        order_detai_trailing_stop_tp2 = order_detail
-        order_detai_trailing_stop_tp2['trailing_stop']='TP2'
-        order_detai_trailing_stop_tp2['comment']='TP2'
-        ticket_id_trailing_stop_tp3 = PlaceOrder(order_detai_trailing_stop_tp3).place_order()
-        ticket_id_trailing_stop_tp2 = PlaceOrder(order_detai_trailing_stop_tp2).place_order()
+        ticket_id = MetaTrader(ticket).place_order()
+        ticket_id_trailing_stop_tp3 = MetaTrader(ticket_trailing_stop_tp3).place_order()
+        ticket_id_trailing_stop_tp2 = MetaTrader(ticket_trailing_stop_tp2).place_order()
         if ticket_id != -1:
             # order is a ticket being placed
             # position is a ticket being execute
-            if len(msg_ticket_detail[mess_id]["meta_ticket_id"])==0:
-                msg_ticket_detail[mess_id]["meta_ticket_id"] = {ticket_id}
+            if len(msg_ticket_detail[mess_id]["id"])==0:
+                msg_ticket_detail[mess_id]["id"] = {ticket_id}
             else:
-                msg_ticket_detail[mess_id]["meta_ticket_id"].append(ticket_id)
+                msg_ticket_detail[mess_id]["id"].append(ticket_id)
         if ticket_id_trailing_stop_tp3 != -1:
             # order is a ticket being placed
             # position is a ticket being execute
-            if len(msg_ticket_detail[mess_id]["meta_ticket_id"])==0:
-                msg_ticket_detail[mess_id]["meta_ticket_id"] = {ticket_id_trailing_stop_tp3}
+            if len(msg_ticket_detail[mess_id]["id"])==0:
+                msg_ticket_detail[mess_id]["id"] = {ticket_id_trailing_stop_tp3}
             else:
-                msg_ticket_detail[mess_id]["meta_ticket_id"].append(ticket_id_trailing_stop_tp3)
+                msg_ticket_detail[mess_id]["id"].append(ticket_id_trailing_stop_tp3)
         if ticket_id_trailing_stop_tp2 != -1:
             # order is a ticket being placed
             # position is a ticket being execute
-            if len(msg_ticket_detail[mess_id]["meta_ticket_id"])==0:
-                msg_ticket_detail[mess_id]["meta_ticket_id"] = {ticket_id_trailing_stop_tp2}
+            if len(msg_ticket_detail[mess_id]["id"])==0:
+                msg_ticket_detail[mess_id]["id"] = {ticket_id_trailing_stop_tp2}
             else:
-                msg_ticket_detail[mess_id]["meta_ticket_id"].append(ticket_id_trailing_stop_tp2)
+                msg_ticket_detail[mess_id]["id"].append(ticket_id_trailing_stop_tp2)
         msg_ticket_detail[mess_id]["OrderOrPosition"] = 'Order'
         
         if ticket_id_trailing_stop_tp3 != -1 and ticket_id != -1 and ticket_id_trailing_stop_tp2 != -1:
@@ -137,8 +144,8 @@ async def my_event_handler(event):
         # search key of message id in msg_position_detail
         if reply_mess.id in msg_ticket_detail:
             # search key of order id msg_position_detail[reply_mess.id]
-            if "meta_ticket_id" in msg_ticket_detail[reply_mess.id]:
-                logging.info(msg_ticket_detail[reply_mess.id]["meta_ticket_id"])
+            if "id" in msg_ticket_detail[reply_mess.id]:
+                logging.info(msg_ticket_detail[reply_mess.id]["id"])
         else:
             pass
 
