@@ -126,6 +126,7 @@ class MetaTrader:
             if abs(ask_price - self._ticket['price']) <= PIP*self._point:
                 self._type = mt5.ORDER_TYPE_BUY
                 self._action = mt5.TRADE_ACTION_DEAL
+                self._ticket['price'] = ask_price
              # do a comparision to set buy stop or buy limit 
             else:
                 if ask_price > self._ticket['price']: self._type = mt5.ORDER_TYPE_BUY_LIMIT
@@ -146,6 +147,7 @@ class MetaTrader:
             if abs(bid_price - self._ticket['price']) <= PIP*self._point:
                 self._type = mt5.ORDER_TYPE_SELL
                 self._action = mt5.TRADE_ACTION_DEAL
+                self._ticket['price'] = bid_price
             # do a comparision to set sell stop or sell limit
             else:
                 if bid_price > self._ticket['price']: self._type = mt5.ORDER_TYPE_SELL_STOP

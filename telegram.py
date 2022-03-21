@@ -68,8 +68,8 @@ async def my_event_handler(event):
         logging.info("Message content: ")
         logging.info(mess_context)
 
-        msg_ticket_detail[mess_id] = extractInfor(mess)
-        ticket=msg_ticket_detail[mess_id]
+        ticket = extractInfor(mess)
+        msg_ticket_detail[mess_id] = []
         # Rapair ticket with correct information
         # Change to correct key, delete unused key
         ticket['symbol'] = ticket['PAIR']
@@ -114,25 +114,16 @@ async def my_event_handler(event):
         if ticket_id != -1:
             # order is a ticket being placed
             # position is a ticket being execute
-            if len(msg_ticket_detail[mess_id]["id"])==0:
-                msg_ticket_detail[mess_id]["id"] = {ticket_id}
-            else:
-                msg_ticket_detail[mess_id]["id"].append(ticket_id)
+            msg_ticket_detail[mess_id].append(ticket)
         if ticket_id_trailing_stop_tp3 != -1:
             # order is a ticket being placed
             # position is a ticket being execute
-            if len(msg_ticket_detail[mess_id]["id"])==0:
-                msg_ticket_detail[mess_id]["id"] = {ticket_id_trailing_stop_tp3}
-            else:
-                msg_ticket_detail[mess_id]["id"].append(ticket_id_trailing_stop_tp3)
+            msg_ticket_detail[mess_id].append(ticket_trailing_stop_tp3)
         if ticket_id_trailing_stop_tp2 != -1:
             # order is a ticket being placed
             # position is a ticket being execute
-            if len(msg_ticket_detail[mess_id]["id"])==0:
-                msg_ticket_detail[mess_id]["id"] = {ticket_id_trailing_stop_tp2}
-            else:
-                msg_ticket_detail[mess_id]["id"].append(ticket_id_trailing_stop_tp2)
-        msg_ticket_detail[mess_id]["OrderOrPosition"] = 'Order'
+            msg_ticket_detail[mess_id].append(ticket_trailing_stop_tp2)
+        # msg_ticket_detail[mess_id]["OrderOrPosition"] = 'Order'
         
         if ticket_id_trailing_stop_tp3 != -1 and ticket_id != -1 and ticket_id_trailing_stop_tp2 != -1:
             logging.info("All positions were created: ")
