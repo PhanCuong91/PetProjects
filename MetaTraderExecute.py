@@ -43,18 +43,18 @@ class MetaTraderInit:
         self._server = SERVER
         self._init = False
 
-    def initalize(self):
+    def initalize(self, desc=""):
         if not self._init:
             if not mt5.initialize(login=self._id,password=self._password,server=self._server):
                 logging.error("initialize() failed, error code =",mt5.last_error())
                 quit()
             self._init = True
-            logging.info("Initialize is successful")   
+            logging.info("{}: Initialize is successful".format(desc))   
 
-    def shutdown(self):
+    def shutdown(self, desc=""):
         if self._init:
             mt5.shutdown()
-            logging.info("Shutdown is successful")  
+            logging.info("{}: Shutdown is successful".format(desc))  
 
     def execute(self, request):
         # send a request
@@ -131,7 +131,6 @@ class MetaTraderOrder(MetaTraderInit):
             else:
                 break
             count=count+1
-            
         if DEBUG:
             # print all logs
             logging.info("Retry creating the order {} time(s).".format(count))
@@ -222,14 +221,14 @@ class MetaTraderOrder(MetaTraderInit):
 
 class ChangeSlTp(MetaTraderInit):
 
-    def __init__(self, position, condition) -> None:
+    def __init__(self, position, sl_pips) -> None:
         super().__init__()
         self._postion_type = None
         self._position = position
-        if condition is not None:
-            self._condition = condition
+        if sl_pips is not None:
+            self._sl_pips = sl_pips
         else:
-            logging.error("Error: Condition has been not set")
+            logging.error("Error: sl_pips has been not set")
 
     def tp_sl_request(self):
         # create a request for changing sl and tp
@@ -348,15 +347,9 @@ class ChangeSlTp(MetaTraderInit):
                     return None
             self._point= mt5.symbol_info(self._postion['symbol']).point  
             if self._postion_type == 'BUY':
-                if self._position['price_current'] >= self._position['price_open'] + self._condition['TP2']*self._point:
-                    return self._position['price_open']+self._condition['TP1']*self._point
-                elif self._position['price_current'] >= self._position['price_open'] + self._condition['TP1']*self._point:
-                    return self._position['price_open'] 
+                return self._position['price_open'] + (self._sl_pips * self._point)
             else:
-                if self._position['price_current'] <= self._position['price_open'] - self._condition['TP2']*self._point:
-                    return self._position['price_open'] - self._condition['TP1']*self._point
-                elif self._position['price_current'] <= self._position['price_open'] - self._condition['TP1']*self._point:
-                    return self._position['price_open']       
+                return self._position['price_open'] - (self._sl_pips * self._point)
         return None
 
 class CreateNewSlTp(MetaTraderInit):
@@ -407,15 +400,15 @@ class GetOrdersPosition(MetaTraderInit):
         super().__init__()
 
     def get_positions(self):
-        self.initalize()
+        self.initalize(desc="Get all positions")
         positions = mt5.positions_get()
-        self.shutdown()
+        self.shutdown(desc="Get all positions")
         return positions
     
     def get_orders(self):
-        self.initalize()
+        self.initalize(desc="Get all orders")
         orders = mt5.orders_get()
-        self.shutdown()
+        self.shutdown(desc="Get all orders")
         return orders
  
 if __name__ == "__main__":

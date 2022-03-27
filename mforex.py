@@ -1,8 +1,8 @@
 from telethon import TelegramClient,events
 from MetaTraderExecute import DEBUG, MetaTraderOrder,GetOrdersPosition,ChangeSlTp,CreateNewSlTp
-import re, logging, threading, copy, time,sys
+import re, logging, threading, copy
 import globalVariables
-
+from datetime import datetime
 # define log for whole project
 globalVariables.log
 
@@ -25,10 +25,13 @@ def extractInfor(mess):
     return position_detail
 
 class MForex:
+    
     mforex='mForex - Private Signal'
+    
     def __init__(self) -> None:
-        self.previous_pos = 0
+        self.previous_pos = None
         pass
+    
     def mforex_create_order(self, event):
         
         # filter messages haveing PAIR in its content
@@ -41,7 +44,6 @@ class MForex:
             logging.info(mess_context)
 
             ticket = extractInfor(mess)
-            globalVariables.msg_ticket_detail[mess_id] = []
             # Adjust the ticket with correct information
             # Change to correct key, delete unused key
             ticket['symbol'] = ticket['PAIR']
@@ -59,6 +61,9 @@ class MForex:
             ticket['TP3'] = ticket['TP3'] * 10
             ticket['SL'] = ticket['SL'] * 10
             ticket['price'] = float(ticket['price'])
+            ticket['mess_id'] = mess_id
+            ticket['sl_lvl'] = -1
+            # ticket['status'] = 'placed'
             logging.info("Position's detail after extracting:\n{}".format(ticket))
             
             # Create 3 types of ticket:
@@ -82,12 +87,14 @@ class MForex:
             # order is a ticket being placed
             # position is a ticket being execute
             if ticket_id_trailing_stop_tp1 != -1:
-                globalVariables.msg_ticket_detail[mess_id].append(ticket_trailing_stop_tp1)
+                # ticket_trailing_stop_tp1['status'] = 'placed'
+                globalVariables.msg_ticket_detail.append(ticket_trailing_stop_tp1)
             if ticket_id_trailing_stop_tp2 != -1:
-                globalVariables.msg_ticket_detail[mess_id].append(ticket_trailing_stop_tp2)
+                # ticket_trailing_stop_tp1['status'] = 'placed'
+                globalVariables.msg_ticket_detail.append(ticket_trailing_stop_tp2)
             if ticket_id_trailing_stop_tp3 != -1:
-                globalVariables.msg_ticket_detail[mess_id].append(ticket_trailing_stop_tp3)
-            # msg_ticket_detail[mess_id]["OrderOrPosition"] = 'Order'
+                # ticket_trailing_stop_tp1['status'] = 'placed'
+                globalVariables.msg_ticket_detail.append(ticket_trailing_stop_tp3)
             
             if ticket_id_trailing_stop_tp3 != -1 and ticket_id_trailing_stop_tp1 != -1 and ticket_id_trailing_stop_tp2 != -1:
                 logging.info("All positions were created: ")
@@ -99,7 +106,7 @@ class MForex:
         # 1st type: close a position if it hits TP1
         # 2nd type: if a position hits TP1, then move SL to entry
         #           if a position hits TP2, then close the position
-        # 3rd type: if a position hits TP, then move SL to entry
+        # 3rd type: if a position hits TP1, then move SL to entry
         #           if a position hits TP2, then move SL to TP1
         #           if a position hits TP3, then close the position
         positions = GetOrdersPosition().get_positions()
@@ -107,25 +114,33 @@ class MForex:
         #     threading.Timer(period, self.mforex_change_sl_tp_of_positions).cancel()
         #     logging.info("There is no position in meta trader")
         #     self.previous_pos = len(positions)
-        if len(positions) < self.previous_pos:
-            for position in positions:
-                for mess_id in globalVariables.msg_ticket_detail:
-                    for ticket in globalVariables.msg_ticket_detail[mess_id]:
-                        if ticket['id'] == position['identifier']:
-                            if DEBUG:
-                                pre = time.now()
-                            condition = {'TP1' : ticket['TP1']}
-                            condition['TP2'] = ticket['TP2']
-                            new_sl = CreateNewSlTp(position,condition).create_new_sl()
-                            ret = ChangeSlTp().change_sl_tp_position(new_sl=new_sl, position=position)
-                            if DEBUG:
-                                now = time.now()
-                            if ret != -1:
-                                if DEBUG:
-                                    logging.info("The time for changing sl of position {} is {}".format(position['identifier'],now-pre))
-                                pass
-                            else:
-                                logging.error("Error: Cannot change to new sl and tp")
+        if DEBUG:
+            pre = datetime.now()
+        
+        if self.previous_pos is not None and len(positions) < len(self.previous_pos):
 
-        self.previous_pos = len(positions)   
+            pos_dif = [i for i in positions + self.previous_pos if i not in positions or i not in self.previous_pos]
+            for position in pos_dif:
+                for msg_ticket in globalVariables.msg_ticket_detail:
+                    if msg_ticket['id'] == position['identifier']:
+                        mess_id = msg_ticket['mess_id']
+                        globalVariables.msg_ticket_detail.remove(msg_ticket)
+                for msg_ticket in globalVariables.msg_ticket_detail:
+                    if msg_ticket['mess_id'] == mess_id:
+                        if msg_ticket['sl_lvl'] == -1:
+                            sl_pips = 0
+                        elif msg_ticket['sl_lvl'] == 0:
+                            sl_pips = msg_ticket['TP1']
+                        msg_ticket['sl_lvl'] = msg_ticket['sl_lvl'] + 1
+                        
+                        new_sl = CreateNewSlTp(position,sl_pips).create_new_sl()
+                        ret = ChangeSlTp().change_sl_tp_position(new_sl=new_sl, position=position)
+                        if ret == -1:
+                            logging.error("Error: Cannot change to new sl and tp")
+        if DEBUG:
+            now = datetime.now()
+            logging.info("The time for changing sl of positions is {}".format(now-pre))
+        
+        # print("text")
+        self.previous_pos = positions
         threading.Timer(period, self.mforex_change_sl_tp_of_positions).start()   

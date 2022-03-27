@@ -24,8 +24,8 @@ me='me'
 #     # Getting information about yourself
 #     me = await client.get_me()
 
-# @client.on(events.NewMessage(from_users=MForex.mforex))
-@client.on(events.NewMessage(from_users=me))
+@client.on(events.NewMessage(from_users=MForex.mforex))
+# @client.on(events.NewMessage(from_users=me))
 async def my_event_handler(event):
 
     mf = MForex()
