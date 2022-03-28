@@ -1,5 +1,5 @@
 from telethon import TelegramClient,events
-from MetaTraderExecute import DEBUG, MetaTraderOrder,GetOrdersPosition,ChangeSlTp,CreateNewSlTp
+from MetaTraderExecute import DEBUG, MetaTraderOrder,GetOrdersPosition,ChangeSlTp
 import re, logging, threading, copy
 import globalVariables
 from datetime import datetime
@@ -133,14 +133,16 @@ class MForex:
                             sl_pips = msg_ticket['TP1']
                         msg_ticket['sl_lvl'] = msg_ticket['sl_lvl'] + 1
                         
-                        new_sl = CreateNewSlTp(position,sl_pips).create_new_sl()
-                        ret = ChangeSlTp().change_sl_tp_position(new_sl=new_sl, position=position)
+                        ret = ChangeSlTp(position).change_sl_tp_position(sl_pips=sl_pips)
                         if ret == -1:
                             logging.error("Error: Cannot change to new sl and tp")
                 if DEBUG:
                     now = datetime.now()
                     logging.info("The time for changing sl of positions is {}".format(now-pre))
-        
-        # print("text")
+ 
         self.previous_pos = positions
         threading.Timer(period, self.mforex_change_sl_tp_of_positions).start()   
+
+if __name__ == "__main__":
+    globalVariables.msg_ticket_detai=[{'ticket': 50044396622, 'time': 1648493124, 'time_msc': 1648493124473, 'time_update': 1648493124, 'time_update_msc': 1648493124473, 'type': 1, 'magic': 234000, 'identifier': 50044396622, 'reason': 3, 'volume': 0.01, 'price_open': 161.456, 'sl': 161.789, 'tp': 160.849, 'price_current': 161.538, 'swap': 0.0, 'profit': -0.66, 'symbol': 'GBPJPY.', 'comment': '26004', 'external_id': '', 'mess_id': 10, 'TP2': 10, 'TP1': 10, 'sl_lvl': -1, 'id': 50044396622}, {'ticket': 50044396623, 'time': 1648493144, 'time_msc': 1648493144113, 'time_update': 1648493144, 'time_update_msc': 1648493144113, 'type': 1, 'magic': 234000, 'identifier': 50044396623, 'reason': 3, 'volume': 0.01, 'price_open': 161.426, 'sl': 161.757, 'tp': 160.817, 'price_current': 161.538, 'swap': 0.0, 'profit': -0.91, 'symbol': 'GBPJPY.', 'comment': '26004', 'external_id': '', 'mess_id': 10, 'TP2': 10, 'TP1': 10, 'sl_lvl': -1, 'id': 50044396623}, {'ticket': 50044396624, 'time': 1648493144, 'time_msc': 1648493144009, 'time_update': 1648493144, 'time_update_msc': 1648493144009, 'type': 1, 'magic': 234000, 'identifier': 50044396624, 'reason': 3, 'volume': 0.01, 'price_open': 161.43, 'sl': 161.758, 'tp': 160.818, 'price_current': 161.538, 'swap': 0.0, 'profit': -0.88, 'symbol': 'GBPJPY.', 'comment': '26004', 'external_id': '', 'mess_id': 10, 'TP2': 10, 'TP1': 10, 'sl_lvl': -1, 'id': 50044396624}]
+    MForex().mforex_change_sl_tp_of_positions(period=10)

@@ -1,6 +1,4 @@
-from urllib import request
 import MetaTrader5 as mt5
-
 import configparser, globalVariables,logging
 
 VOLUME = 0.01
@@ -10,6 +8,7 @@ SELL=0
 TIMEOUT_COUNTER=10
 PERCENT=0.5 #-> 0.5%
 PIP=50
+ADDING_PIP=5
 DEBUG = True
 # read configuration from congfig.ini
 # https://docs.python.org/3/library/configparser.html
@@ -97,12 +96,7 @@ class MetaTraderOrder(MetaTraderInit):
             self._ticket['comment'] = comment
         if trailing_stop is not None:
             self._ticket['trailing_stop'] = trailing_stop
-        if DEBUG:
-            # create arrays to log values
-            results = []
-            ask_prices= []
-            bid_prices = []
-            prices = []
+
         if not self.prepare_oder_sl_tp():
             self.shutdown()
             return -1
@@ -112,9 +106,14 @@ class MetaTraderOrder(MetaTraderInit):
             return -1
         request = self.order_request()
         result = self.execute(request)
-
+        if DEBUG:
+            # create arrays to log values
+            results = []
+            ask_prices= []
+            bid_prices = []
+            prices = []
         # attempt 2 more times
-        ATTEMP = 3 
+        ATTEMP = 2 
         while result.retcode != mt5.TRADE_RETCODE_DONE:
             if DEBUG:
                 # log values to arrays
@@ -173,7 +172,7 @@ class MetaTraderOrder(MetaTraderInit):
         return True
 
     def prepare_ticket(self):
-        
+        # get bid and ask price to choose action and type accordingly
         self._ask_price = mt5.symbol_info(self._ticket['symbol'])._asdict()['ask']
         self._bid_price = mt5.symbol_info(self._ticket['symbol'])._asdict()['bid']
         if self._ask_price - self._bid_price > PIP*self._point:
@@ -193,15 +192,17 @@ class MetaTraderOrder(MetaTraderInit):
             else:
                 self._type = mt5.ORDER_TYPE_SELL_STOP
         else:
-            self._action = mt5.TRADE_ACTION_DEAL
+            
+            # self._action = mt5.TRADE_ACTION_DEAL
             if self._ticket['order_type'] == "BUY" :
-                self._type = mt5.ORDER_TYPE_BUY
+                # self._type = mt5.ORDER_TYPE_BUY
                 if abs(self._price - self._ask_price) < PIP*self._point:
-                    self._ticket['price'] = self._ask_price
+                    self._ticket['price'] = self._ask_price+ADDING_PIP*self._point
             else:
-                self._type = mt5.ORDER_TYPE_SELL
+                # self._type = mt5.ORDER_TYPE_SELL
                 if abs(self._price - self._ask_price) < PIP*self._point:
-                    self._ticket['price'] = self._bid_price
+                    self._ticket['price'] = self._bid_price-ADDING_PIP*self._point
+            self.prepare_ticket()
         return True    
 
     def order_request(self):
@@ -223,100 +224,43 @@ class MetaTraderOrder(MetaTraderInit):
 
 class ChangeSlTp(MetaTraderInit):
 
-    def __init__(self, position, sl_pips) -> None:
+    def __init__(self, position) -> None:
         super().__init__()
-        self._postion_type = None
-        self._position = position
-        if sl_pips is not None:
-            self._sl_pips = sl_pips
+        self._position_type = None
+        if position is not None:
+            self._position = position
         else:
-            logging.error("Error: sl_pips has been not set")
+            logging.error("Error: position has not been set")
+        # convert position as a dictionary
+        self._position = position._asdict()
+
 
     def tp_sl_request(self):
         # create a request for changing sl and tp
         request = {
             "action": mt5.TRADE_ACTION_SLTP,
-            "symbol": self._postion['symbol'],
-            "position": self._postion['id'],
-            "sl": self._postion['sl'],
-            "tp": self._postion['tp'],
+            "symbol": self._position['symbol'],
+            "position": self._position['ticket'],
+            "sl": self._position['sl'],
+            "tp": self._position['tp'],
             "magic": 234000,}
         return request
 
-    def prepare_tp_sl(self):
-        '''
-        ask_price = mt5.symbol_info(self._ticket['symbol'])._asdict()['ask']
-        logging.info("Ask price 0: {}".format(ask_price))
-        bid_price = mt5.symbol_info(self._ticket['symbol'])._asdict()['bid']
-        logging.info("Ask price 0: {}".format(bid_price))
-        if self._ticket['order_type'] == "BUY" :
-            tp1=self._ticket['price']+self._ticket_detail['TP1']*self._point
-            tp2=self._ticket['price']+self._ticket_detail['TP2']*self._point
-            tp3=self._ticket['price']+self._ticket_detail['TP3']*self._point
-            if ask_price>tp2:
-                sl=tp1    
-            elif ask_price>tp1:
-                sl=self._ticket['price']
-        else:
-            tp1=self._ticket['price']-self._ticket_detail['TP1']*self._point
-            tp2=self._ticket['price']-self._ticket_detail['TP2']*self._point
-            tp3=self._ticket['price']-self._ticket_detail['TP3']*self._point
-            if bid_price<tp2:
-                sl=tp1
-            elif bid_price<tp1:
-                sl=self._ticket['price']
-        tp = tp1
-        if self._ticket['trailing_stop'] == 'TP3':
-            tp = tp3
-        elif self._ticket['trailing_stop'] == 'TP2':
-            tp = tp2
-        elif self._ticket['trailing_stop'] == 'TP1':
-            tp = tp1
-        self._ticket['tp']=tp
-        self._ticket['sl']=sl
-        '''
-        if self._postion_type is None:
-            if self._postion['profit'] > 0.0:
-                if  self._postion['price_current'] > self._postion['price_open']: 
-                    self._postion_type = 'BUY'
-                elif self._postion['price_current'] < self._postion['price_open']:
-                    self._postion_type = 'SELL'
-                else:
-                    pass
-            elif self._postion['profit'] < 0.0:
-                if  self._postion['price_current'] > self._postion['price_open']: 
-                    self._postion_type = 'SELL'
-                elif self._postion['price_current'] < self._postion['price_open']:
-                    self._postion_type = 'BUY'
-                else:
-                    pass
-            else: 
-                pass
-        if self._postion_type == 'BUY':
-            if self._new_sl is not None:
-                self._postion['sl'] = self._postion['price_open'] - self._new_sl 
-            if self._new_tp is not None:
-                self._postion['tp'] = self._postion['price_open'] + self._new_tp                
-        else:
-            if self._new_sl is not None:
-                self._postion['sl'] = self._postion['price_open'] + self._new_sl 
-            if self._new_tp is not None:
-                self._postion['tp'] = self._postion['price_open'] - self._new_tp 
+    def change_sl_tp_position(self, sl_pips= None, tp_pips = None):
+        if sl_pips is not None:
+            self._sl_pips = sl_pips
 
-    def change_sl_tp_position(self, position=None):
+        if tp_pips is not None:
+            self._tp_pips = tp_pips
+
         self.initalize()
-        # change sl and tp
-        if position is not None:
-            self._postion = position
-        else:
-            logging.error("Error: position has not been set")
-         
+        # get new sl and tp
         self._new_sl = self.create_new_sl()
         self._new_tp = self.create_new_tp()
         if self._new_sl is not None:
-            self._postion['sl'] = self._new_sl
+            self._position['sl'] = self._new_sl
         if self._new_tp is not None:
-            self._postion['tp'] = self._new_tp
+            self._position['tp'] = self._new_tp
         if self._new_tp is None and self._new_sl is None:
             self.shutdown()
             logging.info("There is no change in sl and tp. Since this, a new request for changing sl and tp shall be canceled")
@@ -327,18 +271,22 @@ class ChangeSlTp(MetaTraderInit):
             self.shutdown()
             logging.error("Error: There is an error when creating a new request for changing sl and tp. The error is {}".format(return_code(result.retcode)))
             return -1
-        logging.info("Position {}: price {}, SL was changed to {} and and TP was changed to {}".format(result.order, self._position['price'], self._postion['sl'], self._postion['tp']))
+        logging.info("Position {}: price {}, SL was changed to {} and and TP was changed to {}".format(self._position['ticket'], self._position['price_open'], self._position['sl'], self._position['tp']))
         self.shutdown()
         return result
 
     def create_new_tp(self, type='default'):
+        if self._tp_pips is None:
+            return None
         if type == 'default':
             return None
         return None
 
     def create_new_sl(self, type = 'default'):
+        if self._sl_pips is None:
+            return None
         if type == 'default':
-            if self._postion_type is None:
+            if self._position_type is None:
                 if  self._position['price_current'] > self._position['price_open']: 
                     if self._position['profit'] > 0.0: self._postion_type = 'BUY'
                     elif self._position['profit'] < 0.0: self._postion_type = 'SELL'
@@ -347,53 +295,20 @@ class ChangeSlTp(MetaTraderInit):
                     elif self._position['profit'] < 0.0: self._postion_type = 'BUY'
                 else:
                     return None
-            self._point= mt5.symbol_info(self._postion['symbol']).point  
-            if self._postion_type == 'BUY':
-                return self._position['price_open'] + (self._sl_pips * self._point)
+            self._point= mt5.symbol_info(self._position['symbol']).point  
+            if self._position_type == 'BUY':
+                sl = self._position['price_open'] + (self._sl_pips * self._point)
             else:
-                return self._position['price_open'] - (self._sl_pips * self._point)
-        return None
-
-class CreateNewSlTp(MetaTraderInit):
-    def __init__(self, position, condition=None) -> None:
-        super().__init__()
-        self._position = position
-        if condition is not None:
-            self._condition = condition
-        else:
-            logging.error("Error: Condition has been not set")
-    
-    def create_new_sl(self, type = 'default'):
-        if type == 'default':
-            if self._postion_type is None:
-                if self._position['profit'] > 0.0:
-                    if  self._position['price_current'] > self._position['price_open']: 
-                        self._postion_type = 'BUY'
-                    elif self._position['price_current'] < self._position['price_open']:
-                        self._postion_type = 'SELL'
-                    else:
-                        pass
-                elif self._position['profit'] < 0.0:
-                    if  self._position['price_current'] > self._position['price_open']: 
-                        self._postion_type = 'SELL'
-                    elif self._position['price_current'] < self._position['price_open']:
-                        self._postion_type = 'BUY'
-                    else:
-                        pass
-                else: 
-                    pass
-             
-            self._point= mt5.symbol_info(self._postion['symbol']).point     
-            if self._postion_type == 'BUY':
-                if self._position['price_current'] >= self._position['price_open'] + self._condition['TP2']*self._point:
-                    return self._position['price_open']+self._condition['TP1']
-                elif self._position['price_current'] >= self._position['price_open'] + self._condition['TP1']*self._point:
-                    return self._position['price_open'] 
+                sl = self._position['price_open'] - (self._sl_pips * self._point)
+            print(self._position['sl'])
+            print(sl)
+            # using abs(self._position['sl'] - sl) < self._point
+            # due to 
+            if abs(self._position['sl'] - sl) < self._point:
+                return None 
             else:
-                if self._position['price_current'] <= self._position['price_open'] - self._condition['TP2']*self._point:
-                    return self._position['price_open'] - self._condition['TP1'] 
-                elif self._position['price_current'] <= self._position['price_open'] - self._condition['TP1']*self._point:
-                    return self._position['price_open']       
+                
+                return sl
         return None
 
 class GetOrdersPosition(MetaTraderInit):
@@ -439,10 +354,34 @@ class RemovePendingOrder(GetOrdersPosition):
                 return True
 
 if __name__ == "__main__":
-    order_detail = {'comment': '26004', 'symbol': 'GBPUSD.', 'order_type': 'SELL', 'price': 1.31131, 'Risk': 'high', 'TP1': 30, 'TP2': 56, 'TP3': 115, 'SL': 32, 'trailing_stop': 'TP3'}
+    MetaTraderInit().initalize()
+    ask =mt5.symbol_info('GBPJPY.')._asdict()['ask']
+    bid =mt5.symbol_info('GBPJPY.')._asdict()['bid']
+    price = bid + 3*mt5.symbol_info('GBPJPY.').point
+    MetaTraderInit().shutdown()
+    order_detail = {'comment': '26004', 'symbol': 'GBPJPY.', 'order_type': 'SELL', 'price': price, 'Risk': 'high', 'TP1': 30, 'TP2': 56, 'TP3': 620, 'SL': 320, 'trailing_stop': 'TP3'}
+    print(type(order_detail))
+    print('ask {},bid {}, price {}'.format(ask,bid, price))
     a = MetaTraderOrder(order_detail)
-    a.place_order()
-    # RemovePendingOrder.remove_pending_order()
     # a.place_order()
+    positions = GetOrdersPosition().get_positions()
+    v = []
+    i = 0
+    for pos in positions:
+        # pos._asdict()['mess_id'] = 10
+        # pos._asdict()['TP2'] = 10
+        # pos._asdict()['TP1'] = 10
+        # pos._asdict()['sl_lvl'] = -1
+        # pos._asdict()['id'] = pos._asdict()['identifier']
+        # print(pos._asdict())
+        v.append(pos._asdict())
+        v[i]['mess_id'] = 10
+        v[i]['TP2'] = 10
+        v[i]['TP1'] = 10
+        v[i]['sl_lvl'] = -1
+        v[i]['id'] = pos._asdict()['identifier']
+        i=i+1
+    # ChangeSlTp(positions[0]).change_sl_tp_position(100)
+    print(v)
     pass
     
