@@ -114,13 +114,13 @@ class MForex:
         #     threading.Timer(period, self.mforex_change_sl_tp_of_positions).cancel()
         #     logging.info("There is no position in meta trader")
         #     self.previous_pos = len(positions)
-        if DEBUG:
-            pre = datetime.now()
         
         if self.previous_pos is not None and len(positions) < len(self.previous_pos):
 
             pos_dif = [i for i in positions + self.previous_pos if i not in positions or i not in self.previous_pos]
             for position in pos_dif:
+                if DEBUG:
+                    pre = datetime.now()
                 for msg_ticket in globalVariables.msg_ticket_detail:
                     if msg_ticket['id'] == position['identifier']:
                         mess_id = msg_ticket['mess_id']
@@ -137,9 +137,9 @@ class MForex:
                         ret = ChangeSlTp().change_sl_tp_position(new_sl=new_sl, position=position)
                         if ret == -1:
                             logging.error("Error: Cannot change to new sl and tp")
-        if DEBUG:
-            now = datetime.now()
-            logging.info("The time for changing sl of positions is {}".format(now-pre))
+                if DEBUG:
+                    now = datetime.now()
+                    logging.info("The time for changing sl of positions is {}".format(now-pre))
         
         # print("text")
         self.previous_pos = positions

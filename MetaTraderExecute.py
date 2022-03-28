@@ -1,3 +1,4 @@
+from urllib import request
 import MetaTrader5 as mt5
 
 import configparser, globalVariables,logging
@@ -111,11 +112,10 @@ class MetaTraderOrder(MetaTraderInit):
             return -1
         request = self.order_request()
         result = self.execute(request)
-        count = 1
 
         # attempt 2 more times
-        ATTEMP = 2 
-        while result.retcode != mt5.TRADE_RETCODE_DONE :
+        ATTEMP = 3 
+        while result.retcode != mt5.TRADE_RETCODE_DONE:
             if DEBUG:
                 # log values to arrays
                 results.append(result.retcode)
@@ -126,21 +126,23 @@ class MetaTraderOrder(MetaTraderInit):
             # The entry price shall be changed
             self.prepare_ticket()
             request["price"] = self._ticket['price']
-            if  count<=ATTEMP:
+            if  len(results)<=ATTEMP:
                 result = self.execute(request)
             else:
                 break
-            count=count+1
-        if DEBUG:
-            # print all logs
-            logging.info("Retry creating the order {} time(s).".format(count))
-            for i in range(0,count):
-                logging.info("Ask price {}: {}".format(i, ask_prices[i]))
-                logging.info("Bid price {}: {}".format(i, bid_prices[i]))
-                logging.info("Order_send failed, retcode of {}: {}".format(i,return_code(results[i])))
-                logging.info("Order request with symbol: {}, order_type: {}, price: {}, TP: {}, SL: {}, Trailing Stop: {}, filling type {}".format(self._ticket['symbol'],order_type(self._type),self._ticket['price'],self._ticket['tp'],self._ticket['sl'],self._ticket['trailing_stop'], self._type_filling))
-        if count == 1:
+        if len(results) == 0:
+            logging.info("Ask price: {}".format(self._ask_price))
+            logging.info("Bid price: {}".format(self._bid_price))
             logging.info("Order request with symbol: {}, order_type: {}, price: {}, TP: {}, SL: {}, Trailing Stop: {}, filling type {}".format(self._ticket['symbol'],order_type(self._type),self._ticket['price'],self._ticket['tp'],self._ticket['sl'],self._ticket['trailing_stop'], self._type_filling))
+        else:
+            if DEBUG:
+                # print all logs
+                logging.info("Retry creating the order {} time(s).".format(len(results)))
+                for i in range(0,len(results)):
+                    logging.info("Ask price {}: {}".format(i, ask_prices[i]))
+                    logging.info("Bid price {}: {}".format(i, bid_prices[i]))
+                    logging.info("Order_send failed, retcode of {}: {}".format(i,return_code(results[i])))
+                    logging.info("Order request with symbol: {}, order_type: {}, price: {}, TP: {}, SL: {}, Trailing Stop: {}, filling type {}".format(self._ticket['symbol'],order_type(self._type),self._ticket['price'],self._ticket['tp'],self._ticket['sl'],self._ticket['trailing_stop'], self._type_filling))
         
         if result.retcode != mt5.TRADE_RETCODE_DONE:
             self.shutdown()
@@ -181,13 +183,13 @@ class MetaTraderOrder(MetaTraderInit):
         if self._ticket['price'] > self._ask_price:
             self._action = mt5.TRADE_ACTION_PENDING
             if self._ticket['order_type'] == "BUY" :
-                self._type = mt5.ORDER_TYPE_BUY_LIMIT
+                self._type = mt5.ORDER_TYPE_BUY_STOP
             else:
                 self._type = mt5.ORDER_TYPE_SELL_LIMIT
         elif self._ticket['price'] < self._bid_price:
             self._action = mt5.TRADE_ACTION_PENDING
             if self._ticket['order_type'] == "BUY" :
-                self._type = mt5.ORDER_TYPE_BUY_STOP
+                self._type = mt5.ORDER_TYPE_BUY_LIMIT
             else:
                 self._type = mt5.ORDER_TYPE_SELL_STOP
         else:
@@ -405,17 +407,42 @@ class GetOrdersPosition(MetaTraderInit):
         self.shutdown(desc="Get all positions")
         return positions
     
-    def get_orders(self):
+    def get_orders(self, ticket=None):
         self.initalize(desc="Get all orders")
-        orders = mt5.orders_get()
+        if ticket is None:
+            orders = mt5.orders_get()
+        else:
+            orders = mt5.orders_get(ticket=ticket)
         self.shutdown(desc="Get all orders")
         return orders
- 
+
+class RemovePendingOrder(GetOrdersPosition):
+    
+    def __init__(self) -> None:
+        super().__init__()
+    
+    def remove_pending_order(self, order_ticket):
+        self._order_ticket = order_ticket
+        order = self.get_orders(ticket=self._order_ticket)
+        if order is None:
+            logging.info("There is no pending order ticket {}".format(self._order_ticket))
+        else:
+            request = {
+                "action": mt5.TRADE_ACTION_REMOVE,
+                "order ": self._order_ticket,}
+            result = self.execute(request)
+            if result.retcode != mt5.TRADE_RETCODE_DONE:
+                logging.error("Error: Removing pending order {} is failed with {}".format(self._order_ticket, return_code(result.retcode)))
+                return False
+            else:
+                logging.info("Removing pending order {} is successfull".format(self._order_ticket))
+                return True
+
 if __name__ == "__main__":
     order_detail = {'comment': '26004', 'symbol': 'GBPUSD.', 'order_type': 'SELL', 'price': 1.31131, 'Risk': 'high', 'TP1': 30, 'TP2': 56, 'TP3': 115, 'SL': 32, 'trailing_stop': 'TP3'}
     a = MetaTraderOrder(order_detail)
     a.place_order()
-    # a.initalize()
+    # RemovePendingOrder.remove_pending_order()
     # a.place_order()
     pass
     
