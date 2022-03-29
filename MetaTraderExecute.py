@@ -192,14 +192,11 @@ class MetaTraderOrder(MetaTraderInit):
             else:
                 self._type = mt5.ORDER_TYPE_SELL_STOP
         else:
-            
-            # self._action = mt5.TRADE_ACTION_DEAL
+            # TODO: need to improvise later
             if self._ticket['order_type'] == "BUY" :
-                # self._type = mt5.ORDER_TYPE_BUY
                 if abs(self._price - self._ask_price) < PIP*self._point:
                     self._ticket['price'] = self._ask_price+ADDING_PIP*self._point
             else:
-                # self._type = mt5.ORDER_TYPE_SELL
                 if abs(self._price - self._ask_price) < PIP*self._point:
                     self._ticket['price'] = self._bid_price-ADDING_PIP*self._point
             self.prepare_ticket()
@@ -247,24 +244,24 @@ class ChangeSlTp(MetaTraderInit):
         return request
 
     def change_sl_tp_position(self, sl_pips= None, tp_pips = None):
-        if sl_pips is not None:
-            self._sl_pips = sl_pips
 
-        if tp_pips is not None:
-            self._tp_pips = tp_pips
-
-        self.initalize()
-        # get new sl and tp
-        self._new_sl = self.create_new_sl()
-        self._new_tp = self.create_new_tp()
-        if self._new_sl is not None:
-            self._position['sl'] = self._new_sl
-        if self._new_tp is not None:
-            self._position['tp'] = self._new_tp
-        if self._new_tp is None and self._new_sl is None:
+        if sl_pips is None and tp_pips is None:
             self.shutdown()
             logging.info("There is no change in sl and tp. Since this, a new request for changing sl and tp shall be canceled")
             return -1
+        # get new sl and tp
+        if sl_pips is not None:
+            self._sl_pips = sl_pips
+            self._new_sl = self.create_new_sl()
+            if self._new_sl is not None:
+                self._position['sl'] = self._new_sl
+        if tp_pips is not None:
+            self._tp_pips = tp_pips    
+            self._new_tp = self.create_new_tp()
+            if self._new_tp is not None:
+                self._position['tp'] = self._new_tp
+
+        self.initalize()
         request = self.tp_sl_request()
         result = self.execute(request)
         if result.retcode != mt5.TRADE_RETCODE_DONE:
@@ -276,6 +273,7 @@ class ChangeSlTp(MetaTraderInit):
         return result
 
     def create_new_tp(self, type='default'):
+        self.initalize()
         if self._tp_pips is None:
             return None
         if type == 'default':
@@ -283,6 +281,7 @@ class ChangeSlTp(MetaTraderInit):
         return None
 
     def create_new_sl(self, type = 'default'):
+        self.initalize()
         if self._sl_pips is None:
             return None
         if type == 'default':
@@ -300,14 +299,11 @@ class ChangeSlTp(MetaTraderInit):
                 sl = self._position['price_open'] + (self._sl_pips * self._point)
             else:
                 sl = self._position['price_open'] - (self._sl_pips * self._point)
-            print(self._position['sl'])
-            print(sl)
             # using abs(self._position['sl'] - sl) < self._point
-            # due to 
+            # due to self._position['sl'] is 162.527 and sl is 162.18900000000002
             if abs(self._position['sl'] - sl) < self._point:
                 return None 
             else:
-                
                 return sl
         return None
 
@@ -354,34 +350,34 @@ class RemovePendingOrder(GetOrdersPosition):
                 return True
 
 if __name__ == "__main__":
-    MetaTraderInit().initalize()
-    ask =mt5.symbol_info('GBPJPY.')._asdict()['ask']
-    bid =mt5.symbol_info('GBPJPY.')._asdict()['bid']
-    price = bid + 3*mt5.symbol_info('GBPJPY.').point
-    MetaTraderInit().shutdown()
-    order_detail = {'comment': '26004', 'symbol': 'GBPJPY.', 'order_type': 'SELL', 'price': price, 'Risk': 'high', 'TP1': 30, 'TP2': 56, 'TP3': 620, 'SL': 320, 'trailing_stop': 'TP3'}
-    print(type(order_detail))
-    print('ask {},bid {}, price {}'.format(ask,bid, price))
-    a = MetaTraderOrder(order_detail)
-    # a.place_order()
-    positions = GetOrdersPosition().get_positions()
-    v = []
-    i = 0
-    for pos in positions:
-        # pos._asdict()['mess_id'] = 10
-        # pos._asdict()['TP2'] = 10
-        # pos._asdict()['TP1'] = 10
-        # pos._asdict()['sl_lvl'] = -1
-        # pos._asdict()['id'] = pos._asdict()['identifier']
-        # print(pos._asdict())
-        v.append(pos._asdict())
-        v[i]['mess_id'] = 10
-        v[i]['TP2'] = 10
-        v[i]['TP1'] = 10
-        v[i]['sl_lvl'] = -1
-        v[i]['id'] = pos._asdict()['identifier']
-        i=i+1
-    # ChangeSlTp(positions[0]).change_sl_tp_position(100)
-    print(v)
+    TEST_CREATE_ORDER = False
+    GET_POSITION_FOR_TESTING = True 
+    if TEST_CREATE_ORDER:
+        MetaTraderInit().initalize()
+        ask =mt5.symbol_info('GBPJPY.')._asdict()['ask']
+        bid =mt5.symbol_info('GBPJPY.')._asdict()['bid']
+        price = bid + 3*mt5.symbol_info('GBPJPY.').point
+        MetaTraderInit().shutdown()
+        order_detail = {'comment': '26004', 'symbol': 'GBPJPY.', 'order_type': 'SELL', 'price': price, 'Risk': 'high', 'TP1': 30, 'TP2': 56, 'TP3': 620, 'SL': 320, 'trailing_stop': 'TP3'}
+        print(type(order_detail))
+        print('ask {},bid {}, price {}'.format(ask,bid, price))
+        a = MetaTraderOrder(order_detail)
+        a.place_order()
+    if GET_POSITION_FOR_TESTING:
+        positions = GetOrdersPosition().get_positions()
+        print(type(positions))
+        print(positions)
+        v = []
+        i = 0
+        for pos in positions:
+            v.append(pos._asdict())
+            v[i]['mess_id'] = 10
+            v[i]['TP2'] = 10
+            v[i]['TP1'] = 10
+            v[i]['sl_lvl'] = -1
+            v[i]['id'] = pos._asdict()['identifier']
+            i=i+1
+        # ChangeSlTp(positions[0]).change_sl_tp_position(100)
+        print(v)
     pass
     

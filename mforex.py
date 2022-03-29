@@ -117,32 +117,35 @@ class MForex:
         
         if self.previous_pos is not None and len(positions) < len(self.previous_pos):
 
-            pos_dif = [i for i in positions + self.previous_pos if i not in positions or i not in self.previous_pos]
-            for position in pos_dif:
-                if DEBUG:
-                    pre = datetime.now()
-                for msg_ticket in globalVariables.msg_ticket_detail:
-                    if msg_ticket['id'] == position['identifier']:
-                        mess_id = msg_ticket['mess_id']
-                        globalVariables.msg_ticket_detail.remove(msg_ticket)
-                for msg_ticket in globalVariables.msg_ticket_detail:
-                    if msg_ticket['mess_id'] == mess_id:
-                        if msg_ticket['sl_lvl'] == -1:
-                            sl_pips = 0
-                        elif msg_ticket['sl_lvl'] == 0:
-                            sl_pips = msg_ticket['TP1']
-                        msg_ticket['sl_lvl'] = msg_ticket['sl_lvl'] + 1
-                        
-                        ret = ChangeSlTp(position).change_sl_tp_position(sl_pips=sl_pips)
-                        if ret == -1:
-                            logging.error("Error: Cannot change to new sl and tp")
-                if DEBUG:
-                    now = datetime.now()
-                    logging.info("The time for changing sl of positions is {}".format(now-pre))
+            for pos in positions + self.previous_pos:
+                if pos not in positions or pos not in self.previous_pos:
+                    # print(pos._asdict())
+                    # convert tuple to dict
+                    position=pos._asdict()
+                    if DEBUG:
+                        pre = datetime.now()
+                    for msg_ticket in globalVariables.msg_ticket_detail:
+                        if msg_ticket['id'] == position['identifier']:
+                            mess_id = msg_ticket['mess_id']
+                            globalVariables.msg_ticket_detail.remove(msg_ticket)
+                    for msg_ticket in globalVariables.msg_ticket_detail:
+                        if msg_ticket['mess_id'] == mess_id:
+                            if msg_ticket['sl_lvl'] == -1:
+                                sl_pips = 0
+                            elif msg_ticket['sl_lvl'] == 0:
+                                sl_pips = msg_ticket['TP1']
+                            msg_ticket['sl_lvl'] = msg_ticket['sl_lvl'] + 1
+                            
+                            ret = ChangeSlTp(pos).change_sl_tp_position(sl_pips=sl_pips)
+                            if ret == -1:
+                                logging.error("Error: Cannot change to new sl and tp")
+                    if DEBUG:
+                        now = datetime.now()
+                        logging.info("The time for changing sl of positions is {}".format(now-pre))
  
         self.previous_pos = positions
         threading.Timer(period, self.mforex_change_sl_tp_of_positions).start()   
 
 if __name__ == "__main__":
-    globalVariables.msg_ticket_detai=[{'ticket': 50044396622, 'time': 1648493124, 'time_msc': 1648493124473, 'time_update': 1648493124, 'time_update_msc': 1648493124473, 'type': 1, 'magic': 234000, 'identifier': 50044396622, 'reason': 3, 'volume': 0.01, 'price_open': 161.456, 'sl': 161.789, 'tp': 160.849, 'price_current': 161.538, 'swap': 0.0, 'profit': -0.66, 'symbol': 'GBPJPY.', 'comment': '26004', 'external_id': '', 'mess_id': 10, 'TP2': 10, 'TP1': 10, 'sl_lvl': -1, 'id': 50044396622}, {'ticket': 50044396623, 'time': 1648493144, 'time_msc': 1648493144113, 'time_update': 1648493144, 'time_update_msc': 1648493144113, 'type': 1, 'magic': 234000, 'identifier': 50044396623, 'reason': 3, 'volume': 0.01, 'price_open': 161.426, 'sl': 161.757, 'tp': 160.817, 'price_current': 161.538, 'swap': 0.0, 'profit': -0.91, 'symbol': 'GBPJPY.', 'comment': '26004', 'external_id': '', 'mess_id': 10, 'TP2': 10, 'TP1': 10, 'sl_lvl': -1, 'id': 50044396623}, {'ticket': 50044396624, 'time': 1648493144, 'time_msc': 1648493144009, 'time_update': 1648493144, 'time_update_msc': 1648493144009, 'type': 1, 'magic': 234000, 'identifier': 50044396624, 'reason': 3, 'volume': 0.01, 'price_open': 161.43, 'sl': 161.758, 'tp': 160.818, 'price_current': 161.538, 'swap': 0.0, 'profit': -0.88, 'symbol': 'GBPJPY.', 'comment': '26004', 'external_id': '', 'mess_id': 10, 'TP2': 10, 'TP1': 10, 'sl_lvl': -1, 'id': 50044396624}]
+    globalVariables.msg_ticket_detail=[{'ticket': 50044429323, 'time': 1648526671, 'time_msc': 1648526671319, 'time_update': 1648526671, 'time_update_msc': 1648526671319, 'type': 1, 'magic': 234000, 'identifier': 50044429323, 'reason': 3, 'volume': 0.01, 'price_open': 162.199, 'sl': 162.527, 'tp': 161.587, 'price_current': 162.133, 'swap': 0.0, 'profit': 0.53, 'symbol': 'GBPJPY.', 'comment': '26004', 'external_id': '', 'mess_id': 10, 'TP2': 10, 'TP1': 10, 'sl_lvl': -1, 'id': 50044429323}, {'ticket': 50044430611, 'time': 1648528169, 'time_msc': 1648528169533, 'time_update': 1648528169, 'time_update_msc': 1648528169533, 'type': 1, 'magic': 234000, 'identifier': 50044430611, 'reason': 3, 'volume': 0.01, 'price_open': 162.097, 'sl': 162.425, 'tp': 161.485, 'price_current': 162.133, 'swap': 0.0, 'profit': -0.29, 'symbol': 'GBPJPY.', 'comment': '26004', 'external_id': '', 'mess_id': 10, 'TP2': 10, 'TP1': 10, 'sl_lvl': -1, 'id': 50044430611}]
     MForex().mforex_change_sl_tp_of_positions(period=10)
