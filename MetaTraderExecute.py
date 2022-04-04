@@ -348,10 +348,11 @@ class RemovePendingOrder(GetOrdersPosition):
             else:
                 logging.info("Removing pending order {} is successfull".format(self._order_ticket))
                 return True
-
+import copy
 if __name__ == "__main__":
     TEST_CREATE_ORDER = False
     GET_POSITION_FOR_TESTING = True 
+    GETPOSITION = True
     if TEST_CREATE_ORDER:
         MetaTraderInit().initalize()
         ask =mt5.symbol_info('GBPJPY.')._asdict()['ask']
@@ -379,5 +380,25 @@ if __name__ == "__main__":
             i=i+1
         # ChangeSlTp(positions[0]).change_sl_tp_position(100)
         print(v)
+    if GETPOSITION:
+        positions = GetOrdersPosition().get_positions()
+        # p1 = copy.copy(positions)
+        cur_list_positions=[]
+        pre_list_positions=[]
+        for pos in positions:
+            cur_list_positions.append(pos._asdict())
+        # print(cur_list_positions)
+        pre_list_positions=copy.copy(cur_list_positions)
+        pre_list_positions.pop()
+        # print(pre_list_positions)
+        for pos in cur_list_positions :
+            print(pos)
+            if pos not in pre_list_positions:
+                # pos is a removed tickets
+                print('removed postion')
+                print(pos)
+        # for pos in positions:
+        #     print(pos)
+
     pass
     
