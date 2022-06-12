@@ -26,7 +26,7 @@ def extractInfor(mess):
 
 class MForex:
     
-    mforex='mForex - Private Signal'
+    mforex='mForex - Private'
     
     def __init__(self) -> None:
         self.previous_pos = None
@@ -56,7 +56,8 @@ class MForex:
             # Open new position
             if ticket['symbol'][len(ticket['symbol'])-1]!='.':
                 ticket['symbol'] = ticket['symbol']+'.'
-            ticket['TP1'] = ticket['TP1'] * 10
+            # ticket['TP1'] = ticket['TP1'] * 10
+            ticket['TP1'] = 150
             ticket['TP2'] = ticket['TP2'] * 10
             ticket['TP3'] = ticket['TP3'] * 10
             ticket['SL'] = ticket['SL'] * 10
@@ -101,7 +102,7 @@ class MForex:
                 logging.info(globalVariables.msg_ticket_detail)
         return globalVariables.msg_ticket_detail
 
-    def mforex_change_sl_tp_of_positions(self, period=10):
+    def mforex_change_sl_tp_of_positions(self, period=300):
         # Create 3 types of ticket:
         # 1st type: close a position if it hits TP1
         # 2nd type: if a position hits TP1, then move SL to entry
@@ -161,7 +162,7 @@ class MForex:
                             msg_ticket['sl_lvl'] = msg_ticket['sl_lvl'] + 1
                             for pos in positions:
                                 if pos._asdict()['identifier'] == msg_ticket['id']:
-                                    print("pos {}".format(pos))
+                                    logging.info("pos {}, sl_pips {}".format(pos,sl_pips))
                                     ret = ChangeSlTp(pos).change_sl_tp_position(sl_pips=sl_pips)
                                     if ret == -1:
                                         logging.error("Error: Cannot change to new sl and tp")

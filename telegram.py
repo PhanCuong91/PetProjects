@@ -6,7 +6,7 @@ import globalVariables
 # define log for whole project
 globalVariables.log
 
-WAIT_SECONDS = 10
+WAIT_SECONDS = 300
 # get telegram configuration
 config= configparser.ConfigParser()
 config.read('config.ini')
@@ -34,7 +34,7 @@ async def my_event_handler(event):
         reply_mess = await event.message.get_reply_message()
         logging.info("Replied message id {}: {}".format(reply_mess.id, event.message.text))
         # adding trailing stop
-        mf.mforex_change_sl_tp_of_positions(period=WAIT_SECONDS)
+
         # search key of message id in msg_position_detail
         if reply_mess.id in globalVariables.msg_ticket_detail:
             # search key of order id msg_position_detail[reply_mess.id]
@@ -43,5 +43,6 @@ async def my_event_handler(event):
                 pass
         else:
             pass
-
+mf = MForex()
+mf.mforex_change_sl_tp_of_positions(period=WAIT_SECONDS)
 client.run_until_disconnected()

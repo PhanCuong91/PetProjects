@@ -48,8 +48,11 @@ class MetaTraderInit:
             if not mt5.initialize(login=self._id,password=self._password,server=self._server):
                 logging.error("initialize() failed, error code =",mt5.last_error())
                 quit()
+                return False
             self._init = True
-            logging.info("{}: Initialize is successful".format(desc))   
+            logging.info("{}: Initialize is successful".format(desc))
+            return True
+        return False
 
     def shutdown(self, desc=""):
         if self._init:
@@ -287,13 +290,22 @@ class ChangeSlTp(MetaTraderInit):
         if type == 'default':
             if self._position_type is None:
                 if  self._position['price_current'] > self._position['price_open']: 
-                    if self._position['profit'] > 0.0: self._postion_type = 'BUY'
-                    elif self._position['profit'] < 0.0: self._postion_type = 'SELL'
+                    if self._position['profit'] > 0.0: 
+                        self._position_type = 'BUY'
+                        logging.info("this is a {} position, because price current {} > price open {} and profit is {}".format(self._position_type,self._position['price_current'], self._position['price_open'],self._position['profit']))
+                    elif self._position['profit'] < 0.0: 
+                        self._position_type = 'SELL'
+                        logging.info("this is a {} position, because price current {} > price open {} and profit is {}".format(self._position_type,self._position['price_current'], self._position['price_open'],self._position['profit']))
                 elif self._position['price_current'] < self._position['price_open']:
-                    if self._position['profit'] > 0.0:self._postion_type = 'SELL'
-                    elif self._position['profit'] < 0.0: self._postion_type = 'BUY'
+                    if self._position['profit'] > 0.0:
+                        self._position_type = 'SELL'
+                        logging.info("this is a {} position, because price current {} > price open {} and profit is {}".format(self._position_type,self._position['price_current'], self._position['price_open'],self._position['profit']))
+                    elif self._position['profit'] < 0.0: 
+                        self._position_type = 'BUY'
+                        logging.info("this is a {} position, because price current {} > price open {} and profit is {}".format(self._position_type,self._position['price_current'], self._position['price_open'],self._position['profit']))
                 else:
                     return None
+            
             self._point= mt5.symbol_info(self._position['symbol']).point  
             if self._position_type == 'BUY':
                 sl = self._position['price_open'] + (self._sl_pips * self._point)
@@ -304,6 +316,7 @@ class ChangeSlTp(MetaTraderInit):
             if abs(self._position['sl'] - sl) < self._point:
                 return None 
             else:
+                logging.info("new sl is {}".format(sl))
                 return sl
         return None
 
@@ -313,11 +326,12 @@ class GetOrdersPosition(MetaTraderInit):
         super().__init__()
 
     def get_positions(self):
-        self.initalize(desc="Get all positions")
-        positions = mt5.positions_get()
-        self.shutdown(desc="Get all positions")
-        return positions
-    
+        if self.initalize(desc="Get all positions"):
+            positions = mt5.positions_get()
+            self.shutdown(desc="Get all positions")
+            return positions
+        logging.info("Cannot login to meta trader 5")
+        return None
     def get_orders(self, ticket=None):
         self.initalize(desc="Get all orders")
         if ticket is None:
