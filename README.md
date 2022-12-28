@@ -1,2 +1,2 @@
-# TeleMeta
-Create a trading position which is based on a signal in Telegram's signal group
+# PetProjects
+This repo is a storage of my Pet Projects
